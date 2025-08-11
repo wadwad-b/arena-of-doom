@@ -1,15 +1,15 @@
 import pygame
 pygame.init()
 
-# Set up display
+# Set up display & music
 screen = pygame.display.set_mode((800, 600))
 pygame.display.set_caption("Arena of Doom")
 screen.fill((255, 255, 255))
+pygame.mixer.music.load("assets/audio/olympus.mp3")
+pygame.mixer.music.play(-1)
 
 game_state = "title"
 
-# Fonts
-font_big = pygame.font.SysFont(None, 72)
 
 # Utility functions
 def keep_in_bounds(location, width, height):
@@ -18,7 +18,8 @@ def update_pos(object, x, y, keep_object_in_bounds = True):
     object.location[0] += x
     object.location[1] += y
     if keep_object_in_bounds:
-        object.location = keep_in_bounds(object.location, object.rect.width, object.rect.height)
+        object.location = keep_in_bounds(object.location, object.original_image.get_width()//2, object.original_image.get_height()//2)
+
     else:
         pass
     object.rect.center = tuple(object.location)
@@ -51,13 +52,13 @@ class Player(pygame.sprite.Sprite):
         self.speed = speed
 
     def up(self, amt=1):
-        update_pos(self, 0, -amt*(self.speed/50))
+        update_pos(self, 0, -amt*(self.speed))
     def down(self, amt=1):
-        update_pos(self, 0, amt*(self.speed/50))
+        update_pos(self, 0, amt*(self.speed))
     def left(self, amt=1):
-        update_pos(self, -amt*(self.speed/50), 0)
+        update_pos(self, -amt*(self.speed), 0)
     def right(self, amt=1):
-        update_pos(self, amt*(self.speed/50), 0)
+        update_pos(self, amt*(self.speed), 0)
 
     def main_attack(self):
         if not self.main_attacking and self.main_cooldown == 0:
@@ -69,16 +70,14 @@ class Player(pygame.sprite.Sprite):
             if self.angle >= 360:
                 self.angle = 0
                 self.main_attacking = False
-                self.main_cooldown = 5*60
+                self.main_cooldown = 2*60
             else:
-                self.angle += 1
+                self.angle += 15
                 self.image = pygame.transform.rotate(self.original_image, self.angle)
 
                 offset_rotated = self.pivot_offset.rotate(-self.angle)
-                self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x,
-                                                        self.location[1] - offset_rotated.y))
+                self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
                 
-
         if self.main_cooldown > 0:
             self.main_cooldown -= 1
 
@@ -155,7 +154,7 @@ while running:
         screen.blit(player.image, player.rect)
         
         pygame.display.flip()
-        clock.tick(240)
+        clock.tick(60)
 
 
 
