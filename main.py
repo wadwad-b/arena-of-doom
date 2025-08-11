@@ -30,10 +30,22 @@ class Player(pygame.sprite.Sprite):
         super().__init__()
 
         self.location = [x, y]
-        self.image = pygame.Surface((30, 30), pygame.SRCALPHA)
-        pygame.draw.circle(self.image, (0, 0, 255), (15, 15), 15)
+
+        # Store original, unrotated sword image
+        self.original_image = pygame.transform.scale(
+            pygame.image.load("assets/sprites/sword-player.png").convert_alpha(),
+            (int(275/10), int(775/10))
+        )
+        self.image = self.original_image
         self.rect = self.image.get_rect(center=tuple(self.location))
+
         self.speed = 1
+        self.angle = 0
+        self.main_attacking = False
+        self.main_cooldown = 0
+
+        # Vector from center to pivot (negative y = down towards base of hilt)
+        self.pivot_offset = pygame.math.Vector2(0, self.image.get_height()//2 - 5)  
 
     def set_speed(self, speed):
         self.speed = speed
@@ -46,6 +58,29 @@ class Player(pygame.sprite.Sprite):
         update_pos(self, -amt*(self.speed/50), 0)
     def right(self, amt=1):
         update_pos(self, amt*(self.speed/50), 0)
+
+    def main_attack(self):
+        if not self.main_attacking and self.main_cooldown == 0:
+            self.main_attacking = True
+            self.angle = 0
+    
+    def update(self):
+        if self.main_attacking:
+            if self.angle >= 360:
+                self.angle = 0
+                self.main_attacking = False
+                self.main_cooldown = 5*60
+            else:
+                self.angle += 1
+                self.image = pygame.transform.rotate(self.original_image, self.angle)
+
+                offset_rotated = self.pivot_offset.rotate(-self.angle)
+                self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x,
+                                                        self.location[1] - offset_rotated.y))
+                
+
+        if self.main_cooldown > 0:
+            self.main_cooldown -= 1
 
 # Set assets
 player = Player(400, 300)
@@ -100,6 +135,7 @@ while running:
             "down": keys[pygame.K_s] or keys[pygame.K_DOWN],
             "left": keys[pygame.K_a] or keys[pygame.K_LEFT],
             "right": keys[pygame.K_d] or keys[pygame.K_RIGHT],
+            "e": keys[pygame.K_e], 
         }
 
         if inputs["up"]:
@@ -110,10 +146,16 @@ while running:
             player.left()
         if inputs["right"]:
             player.right()
+        if inputs["e"]:
+            player.main_attack()
+        
+        player.update()
 
         screen.fill((255, 255, 255))
         screen.blit(player.image, player.rect)
+        
         pygame.display.flip()
+        clock.tick(240)
 
 
 
