@@ -55,6 +55,7 @@ play_button = pygame.transform.scale(pygame.image.load("assets/buttons/play.png"
 button_mask = pygame.mask.from_surface(play_button)
 play_button_rect = play_button.get_rect(center=(400, 350))
 
+
 # Run game
 running = True
 clock = pygame.time.Clock()
