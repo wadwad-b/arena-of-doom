@@ -71,6 +71,9 @@ class Player(pygame.sprite.Sprite):
                 self.angle = 0
                 self.main_attacking = False
                 self.main_cooldown = 2*60
+
+                self.image = self.original_image
+                self.rect = self.image.get_rect(center=self.location)
             else:
                 self.angle += 15
                 self.image = pygame.transform.rotate(self.original_image, self.angle)
@@ -84,7 +87,8 @@ class Player(pygame.sprite.Sprite):
 # Set assets
 player = Player(400, 300)
 player.set_speed(2)
-background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
+title_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
+l1_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
 
 title_text = pygame.transform.scale(pygame.image.load("assets/text/title.png").convert_alpha(), (576, 84))
 
@@ -119,7 +123,7 @@ while running:
                     running = False
     
     if game_state == "title":
-        screen.blit(background, (0, 0))
+        screen.blit(title_background, (0, 0))
         screen.blit(title_text, title_text.get_rect(center=(400, 200)))
         screen.blit(play_button, play_button_rect)
         screen.blit(quit_button, quit_button_rect)
@@ -150,7 +154,7 @@ while running:
         
         player.update()
 
-        screen.fill((255, 255, 255))
+        screen.blit(l1_background, (0, 0))
         screen.blit(player.image, player.rect)
         
         pygame.display.flip()
