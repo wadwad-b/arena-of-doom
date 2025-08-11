@@ -39,21 +39,28 @@ class Player(pygame.sprite.Sprite):
         self.speed = speed
 
     def up(self, amt=1):
-        update_pos(self, 0, -amt*(self.speed/10))
+        update_pos(self, 0, -amt*(self.speed/50))
     def down(self, amt=1):
-        update_pos(self, 0, amt*(self.speed/10))
+        update_pos(self, 0, amt*(self.speed/50))
     def left(self, amt=1):
-        update_pos(self, -amt*(self.speed/10), 0)
+        update_pos(self, -amt*(self.speed/50), 0)
     def right(self, amt=1):
-        update_pos(self, amt*(self.speed/10), 0)
+        update_pos(self, amt*(self.speed/50), 0)
 
 # Set assets
 player = Player(400, 300)
 player.set_speed(2)
 background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
+
+title_text = pygame.transform.scale(pygame.image.load("assets/text/title.png").convert_alpha(), (576, 84))
+
 play_button = pygame.transform.scale(pygame.image.load("assets/buttons/play.png").convert_alpha(), (200, 200))
-button_mask = pygame.mask.from_surface(play_button)
-play_button_rect = play_button.get_rect(center=(400, 350))
+play_button_mask = pygame.mask.from_surface(play_button)
+play_button_rect = play_button.get_rect(center=(250, 350))
+
+quit_button = pygame.transform.scale(pygame.image.load("assets/buttons/quit.png").convert_alpha(), (200, 200))
+quit_button_mask = pygame.mask.from_surface(quit_button)
+quit_button_rect = quit_button.get_rect(center=(550, 350))
 
 
 # Run game
@@ -69,14 +76,19 @@ while running:
             if play_button_rect.collidepoint(event.pos):
                 local_x = event.pos[0] - play_button_rect.left
                 local_y = event.pos[1] - play_button_rect.top
-                if button_mask.get_at((local_x, local_y)):
+                if play_button_mask.get_at((local_x, local_y)):
                     game_state = "play"
+            if quit_button_rect.collidepoint(event.pos):
+                local_x = event.pos[0] - quit_button_rect.left
+                local_y = event.pos[1] - quit_button_rect.top
+                if quit_button_mask.get_at((local_x, local_y)):
+                    running = False
     
     if game_state == "title":
         screen.blit(background, (0, 0))
-        title_text = font_big.render("Arena of Doom", True, (255, 0, 0))
         screen.blit(title_text, title_text.get_rect(center=(400, 200)))
         screen.blit(play_button, play_button_rect)
+        screen.blit(quit_button, quit_button_rect)
         pygame.display.flip()
 
     elif game_state == "play":   
