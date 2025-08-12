@@ -46,7 +46,7 @@ class Player(pygame.sprite.Sprite):
         self.main_cooldown = 0
 
         # Vector from center to pivot (negative y = down towards base of hilt)
-        self.pivot_offset = pygame.math.Vector2(0, self.image.get_height()//2 - 5)  
+        self.pivot_offset = pygame.Vector2(0, self.image.get_height() / 2)
 
     def set_speed(self, speed):
         self.speed = speed
@@ -80,9 +80,33 @@ class Player(pygame.sprite.Sprite):
 
                 offset_rotated = self.pivot_offset.rotate(-self.angle)
                 self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
-                
+
+
         if self.main_cooldown > 0:
             self.main_cooldown -= 1
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.transform.scale(
+            pygame.image.load("assets/sprites/enemy.png").convert_alpha(),
+            (50, 50)
+        )
+        self.rect = self.image.get_rect(center=(x, y))
+        self.location = pygame.math.Vector2(x, y)
+        self.speed = 1.5  # enemy movement speed
+
+    def update(self, player_location):
+        # Calculate direction vector from enemy to player
+        direction = pygame.math.Vector2(player_location) - self.location
+        if direction.length() != 0:
+            direction = direction.normalize()  # get unit vector
+        
+        # Move enemy toward player
+        self.location += direction * self.speed
+        
+        # Update rect position
+        self.rect.center = (round(self.location.x), round(self.location.y))
 
 # Set assets
 player = Player(400, 300)
@@ -116,11 +140,14 @@ while running:
                 local_y = event.pos[1] - play_button_rect.top
                 if play_button_mask.get_at((local_x, local_y)):
                     game_state = "play"
+                    player.main_cooldown = 2*60
             if quit_button_rect.collidepoint(event.pos):
                 local_x = event.pos[0] - quit_button_rect.left
                 local_y = event.pos[1] - quit_button_rect.top
                 if quit_button_mask.get_at((local_x, local_y)):
                     running = False
+        if game_state == "play" and event.type == pygame.MOUSEBUTTONDOWN:
+            player.main_attack()
     
     if game_state == "title":
         screen.blit(title_background, (0, 0))
