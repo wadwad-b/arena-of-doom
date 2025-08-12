@@ -7,7 +7,7 @@ pygame.display.set_caption("Arena of Doom")
 screen.fill((255, 255, 255))
 pygame.mixer.music.load("assets/audio/olympus.mp3")
 pygame.mixer.music.play(-1)
-
+counter = 0
 
 game_state = "title"
 
@@ -15,10 +15,7 @@ game_state = "title"
 # Utility functions
 damaged_enemies = {
     "damaged": [],
-    "attacked": {
-        "cooldown":[],
-        "tick_damage":[],
-    },
+    "attacked": [],
 }
 wave_cooldown = 0
 def draw_health_bar(surface, x, y, width, height, current, maximum):
@@ -204,8 +201,8 @@ enemies = pygame.sprite.Group()
 
 title_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
 t1_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
-t2_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
-t3_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
+t2_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/desert.jpg").convert(), (800, 600))
+t3_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/ocean.jpg").convert(), (800, 600))
 
 title_text = pygame.transform.scale(pygame.image.load("assets/text/title.png").convert_alpha(), (576, 84))
 
@@ -221,6 +218,39 @@ continue_button = pygame.transform.scale(pygame.image.load("assets/buttons/conti
 continue_button_mask = pygame.mask.from_surface(continue_button)
 continue_button_rect = continue_button.get_rect(center=(400, 500))
 
+menu_button = pygame.transform.scale(pygame.image.load("assets/buttons/menu.png").convert_alpha(), (200, 200))
+menu_button_mask = pygame.mask.from_surface(menu_button)
+menu_button_rect = menu_button.get_rect(center=(400, 500))
+menu_button_rect.center = (800 - menu_button_rect.width // 2 - 25, 600 - menu_button_rect.height // 2 - 10)
+
+infinity_button_width = 400
+infinity_button_height = menu_button_rect.height
+infinity_button_rect = pygame.Rect(
+    10,  # left padding
+    menu_button_rect.top,
+    menu_button_rect.left - 10 - 10,  # from left padding to menu button left minus 10px spacing
+    menu_button_rect.height
+)
+
+infinity_panel_rect = pygame.Rect(30, menu_button_rect.centery - 100, 520, 200)
+
+# Difficulty buttons inside panel
+difficulty_button_width = 80
+difficulty_button_height = 50
+difficulty_button_margin = 20
+
+difficulty_buttons = []
+start_x = infinity_panel_rect.x + 20
+start_y = infinity_panel_rect.y + 120
+
+for i in range(5):
+    btn_rect = pygame.Rect(
+        start_x + i * (difficulty_button_width + difficulty_button_margin),
+        start_y,
+        difficulty_button_width,
+        difficulty_button_height
+    )
+    difficulty_buttons.append((btn_rect, str(i + 1)))
 
 # Run game
 running = True
@@ -229,6 +259,8 @@ play_start_time = None
 
 level_font_title = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 48)
 level_font_button = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 28)
+infinity_title_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 36)
+infinity_subtitle_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 24)
 
 
 cols = 5
@@ -260,11 +292,14 @@ while running:
                 player.main_attacking = False
 
         
-        if game_state == "title" and event.type == pygame.MOUSEBUTTONDOWN:
+        if game_state == "title" and event.type == pygame.MOUSEBUTTONUP:
             if play_button_rect.collidepoint(event.pos):
                 local_x = event.pos[0] - play_button_rect.left
                 local_y = event.pos[1] - play_button_rect.top
                 if play_button_mask.get_at((local_x, local_y)):
+                    pygame.event.clear(pygame.MOUSEBUTTONDOWN)
+                    pygame.event.clear(pygame.MOUSEBUTTONUP)
+
                     game_state = "level"
 
             if quit_button_rect.collidepoint(event.pos):
@@ -272,12 +307,11 @@ while running:
                 local_y = event.pos[1] - quit_button_rect.top
                 if quit_button_mask.get_at((local_x, local_y)):
                     running = False
-            pygame.event.clear(pygame.MOUSEBUTTONDOWN)
-            pygame.event.clear(pygame.MOUSEBUTTONUP)
+
         if game_state == "play" and event.type == pygame.MOUSEBUTTONDOWN:
             player.main_attack()
 
-        if game_state == "over" and event.type == pygame.MOUSEBUTTONDOWN:
+        if game_state == "over" and event.type == pygame.MOUSEBUTTONUP:
             if continue_button_rect.collidepoint(event.pos):
                 game_state = "level"
                 player.health = player.max_health
@@ -285,7 +319,9 @@ while running:
                 player.main_attacking = False
 
         if game_state == "level" and event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # left click
+            if event.button == 1:
+                if menu_button_rect.collidepoint(event.pos):
+                    game_state = "title"
                 for rect, label in level_buttons:
                     if rect.collidepoint(event.pos):
                         print(f"Selected {label}")
@@ -324,6 +360,7 @@ while running:
         screen.blit(play_button, play_button_rect)
         screen.blit(quit_button, quit_button_rect)
         pygame.display.flip()
+        clock.tick(60)
     
     elif game_state == "over":
         screen.blit(map, (0, 0))
@@ -338,9 +375,19 @@ while running:
         screen.blit(text, text.get_rect(center=(400, 300)))
         screen.blit(continue_button, continue_button_rect)
         pygame.display.flip()
+        clock.tick(60)
 
     elif game_state == "level":
-        screen.fill((255, 255, 255))
+        counter += 1
+        if 0 <= counter <= 90:
+            screen.blit(t1_background, (0, 0))
+        elif 91 <= counter <= 180:
+            screen.blit(t2_background, (0, 0))
+        elif 181 <= counter <= 270:
+            screen.blit(t3_background, (0, 0))
+        else:
+            counter = 0
+        
         # Title text
         title_surface = level_font_title.render("Level Select", True, (0, 0, 0))
         title_rect = title_surface.get_rect(center=(400, 70))
@@ -356,10 +403,38 @@ while running:
             text_surf = level_font_button.render(label, True, (255, 255, 255))
             text_rect = text_surf.get_rect(center=rect.center)
             screen.blit(text_surf, text_rect)
+            
+        screen.blit(menu_button, menu_button_rect)
+
+        pygame.draw.rect(screen, (230, 230, 230), infinity_panel_rect, border_radius=15)
+        pygame.draw.rect(screen, (150, 75, 0), infinity_panel_rect, 3, border_radius=15)
+
+        # Draw the "Infinity Mode" title
+        title_surf = infinity_title_font.render("Infinity Mode", True, (0, 0, 0))
+        title_rect = title_surf.get_rect(center=(infinity_panel_rect.centerx, infinity_panel_rect.y + 40))
+        screen.blit(title_surf, title_rect)
+
+        # Draw "Select Difficulty" subtitle
+        subtitle_surf = infinity_subtitle_font.render("Select Difficulty", True, (50, 50, 50))
+        subtitle_rect = subtitle_surf.get_rect(center=(infinity_panel_rect.centerx, infinity_panel_rect.y + 85))
+        screen.blit(subtitle_surf, subtitle_rect)
+
+        # Draw difficulty buttons
+        mouse_pos = pygame.mouse.get_pos()
+        for rect, label in difficulty_buttons:
+            color = (200, 100, 30) if rect.collidepoint(mouse_pos) else (150, 75, 0)
+            pygame.draw.rect(screen, color, rect, border_radius=12)
+            text_surf = level_font_button.render(label, True, (255, 255, 255))
+            text_rect = text_surf.get_rect(center=rect.center)
+            screen.blit(text_surf, text_rect)
+
+        # Draw the menu button bottom right
+        screen.blit(menu_button, menu_button_rect)
 
         
 
         pygame.display.flip()
+        clock.tick(60)
 
     elif game_state == "play":
         current_play_time = pygame.time.get_ticks()
@@ -405,20 +480,16 @@ while running:
             damaged_enemies["damaged"] = []
             for enemy in enemies:
                 if pygame.sprite.collide_mask(player, enemy):
-                    if enemy not in damaged_enemies["attacked"]["cooldown"]:
+                    if enemy not in damaged_enemies["attacked"]:
                         player.health -= enemy.damage
-                        damaged_enemies["attacked"]["cooldown"].append(enemy)
-                        if enemy not in damaged_enemies["attacked"]["tick_damage"]:
-                            damaged_enemies["attacked"]["tick_damage"].append(enemy)
+                        enemy.health -= 0.25 * enemy.health
+                        damaged_enemies["attacked"].append(enemy)
                         enemy.cooldown = 2*60
-
                 
-            for enemy in damaged_enemies["attacked"]["tick_damage"]:
-                enemy.health -= (0.1/60)*enemy.max_health
-                if enemy in damaged_enemies["attacked"]["cooldown"]:
+                if enemy in damaged_enemies["attacked"]:
                     enemy.cooldown -= 1
-                if enemy.cooldown <= 0 and enemy in damaged_enemies["attacked"]["cooldown"]:
-                    damaged_enemies["attacked"]["cooldown"].remove(enemy)
+                if enemy.cooldown <= 0 and enemy in damaged_enemies["attacked"]:
+                    damaged_enemies["attacked"].remove(enemy)
                 if enemy.health <= 0:
                     enemies.remove(enemy)
             
