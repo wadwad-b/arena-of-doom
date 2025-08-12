@@ -12,15 +12,19 @@ game_state = "title"
 
 
 # Utility functions
+def draw_health_bar(surface, x, y, width, height, current, maximum):
+    if maximum <= 0:
+        return
+    ratio = current / maximum
+    pygame.draw.rect(surface, (255, 0, 0), (x, y, width, height))
+    pygame.draw.rect(surface, (0, 255, 0), (x, y, width * ratio, height))
+    pygame.draw.rect(surface, (0, 0, 0), (x, y, width, height), 2)
+
 def spawn_enemies(difficulty, enemy_group):
-    # Difficulty controls:
-    # Number of enemies: difficulty * 2 (for example)
-    # Health range: 10 * difficulty to 20 * difficulty
-    # Damage range: 1 * difficulty to 5 * difficulty
 
     num_enemies = int(difficulty * 2)
-    health_min = 10 * difficulty
-    health_max = 20 * difficulty
+    health_min = 20 * difficulty
+    health_max = 40 * difficulty
     damage_min = 1 * difficulty
     damage_max = 5 * difficulty
 
@@ -82,7 +86,8 @@ class Player(pygame.sprite.Sprite):
         self.angle = 0
         self.main_attacking = False
         self.main_cooldown = 0
-        
+        self.health = 100
+        self.max_health = 100
 
         # Vector from center to pivot (negative y = down towards base of hilt)
         self.pivot_offset = pygame.Vector2(0, self.image.get_height() / 2)
@@ -139,6 +144,7 @@ class Enemy(pygame.sprite.Sprite):
         self.location = pygame.math.Vector2(x, y)
         self.speed = 1.5
         self.health = health
+        self.max_health = health
         self.damage = damage
 
     def update(self, player_location):
@@ -188,6 +194,12 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                game_state = "title"
+                enemies.empty()
+                player.main_attacking = False
+
         
         if game_state == "title" and event.type == pygame.MOUSEBUTTONDOWN:
             if play_button_rect.collidepoint(event.pos):
@@ -242,12 +254,32 @@ while running:
 
         enemies.update(player.location)
         player.update()
+
+        if player.main_attacking:
+            for enemy in enemies:
+                if pygame.sprite.collide_mask(player, enemy):
+                    enemy.health -= 10
+                    if enemy.health <= 0:
+                        enemies.remove(enemy)
+        else:
+            for enemy in enemies:
+                if pygame.sprite.collide_mask(player, enemy):
+                    player.health -= enemy.damage
+                    enemy.kill()
+                    if player.health <= 0:
+                        enemies.remove(enemy)
+
         
 
         screen.blit(l1_background, (0, 0))
         screen.blit(player.image, player.rect)
+        draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
         enemies.draw(screen)
-        
+        for enemy in enemies:
+            print(f"Enemy Health: {enemy.health}/{enemy.max_health}, Enemy Damage: {enemy.damage}")
+            draw_health_bar(screen, enemy.rect.centerx - 15, enemy.rect.bottom + 5, 30, 4, enemy.health, enemy.max_health)
+
+
         pygame.display.flip()
         clock.tick(60)
 
