@@ -8,13 +8,17 @@ screen.fill((255, 255, 255))
 pygame.mixer.music.load("assets/audio/olympus.mp3")
 pygame.mixer.music.play(-1)
 
+
 game_state = "title"
 
 
 # Utility functions
 damaged_enemies = {
     "damaged": [],
-    "attacked": [],
+    "attacked": {
+        "cooldown":[],
+        "tick_damage":[],
+    },
 }
 wave_cooldown = 0
 def draw_health_bar(surface, x, y, width, height, current, maximum):
@@ -143,9 +147,9 @@ class EnemySpawner:
     def __init__(self, enemy_group, difficulty, waves):
         self.enemy_group = enemy_group
         self.current_wave = 1
-        self.wave_cooldown = 0  # ticks until next wave spawn allowed
+        self.wave_cooldown = 0
         self.total_waves = waves
-        self.spawn_delay = 5 * 60  # 5 seconds cooldown
+        self.spawn_delay = 5 * 60 
         self.difficulty = difficulty
     
     def spawn_enemies(self):
@@ -199,7 +203,9 @@ player.set_speed(2)
 enemies = pygame.sprite.Group()
 
 title_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
-l1_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
+t1_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
+t2_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
+t3_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
 
 title_text = pygame.transform.scale(pygame.image.load("assets/text/title.png").convert_alpha(), (576, 84))
 
@@ -211,13 +217,37 @@ quit_button = pygame.transform.scale(pygame.image.load("assets/buttons/quit.png"
 quit_button_mask = pygame.mask.from_surface(quit_button)
 quit_button_rect = quit_button.get_rect(center=(550, 350))
 
+continue_button = pygame.transform.scale(pygame.image.load("assets/buttons/continue.png").convert_alpha(), (200, 200))
+continue_button_mask = pygame.mask.from_surface(continue_button)
+continue_button_rect = continue_button.get_rect(center=(400, 500))
+
 
 # Run game
 running = True
 clock = pygame.time.Clock()
 play_start_time = None
 
-l1 = EnemySpawner(enemies, 1, 3)
+level_font_title = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 48)
+level_font_button = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 28)
+
+
+cols = 5
+rows = 3
+button_width = 130
+button_height = 60
+button_margin_x = 20
+button_margin_y = 20
+start_x = (800 - (button_width * cols + button_margin_x * (cols - 1))) // 2
+start_y = 150
+
+level_buttons = []
+for i in range(15):
+    row = i // cols
+    col = i % cols
+    x = start_x + col * (button_width + button_margin_x)
+    y = start_y + row * (button_height + button_margin_y)
+    rect = pygame.Rect(x, y, button_width, button_height)
+    level_buttons.append((rect, f"Level {i+1}"))
 
 while running:
     for event in pygame.event.get():
@@ -235,17 +265,58 @@ while running:
                 local_x = event.pos[0] - play_button_rect.left
                 local_y = event.pos[1] - play_button_rect.top
                 if play_button_mask.get_at((local_x, local_y)):
-                    game_state = "play"
-                    player.main_cooldown = 2*60
-                    play_start_time = pygame.time.get_ticks()
+                    game_state = "level"
 
             if quit_button_rect.collidepoint(event.pos):
                 local_x = event.pos[0] - quit_button_rect.left
                 local_y = event.pos[1] - quit_button_rect.top
                 if quit_button_mask.get_at((local_x, local_y)):
                     running = False
+            pygame.event.clear(pygame.MOUSEBUTTONDOWN)
+            pygame.event.clear(pygame.MOUSEBUTTONUP)
         if game_state == "play" and event.type == pygame.MOUSEBUTTONDOWN:
             player.main_attack()
+
+        if game_state == "over" and event.type == pygame.MOUSEBUTTONDOWN:
+            if continue_button_rect.collidepoint(event.pos):
+                game_state = "level"
+                player.health = player.max_health
+                enemies.empty()
+                player.main_attacking = False
+
+        if game_state == "level" and event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # left click
+                for rect, label in level_buttons:
+                    if rect.collidepoint(event.pos):
+                        print(f"Selected {label}")
+                        selected_level = int(label.split()[1])
+                        player.main_cooldown = 2*60
+                        play_start_time = pygame.time.get_ticks()
+
+                        if selected_level % 5 == 1:
+                            enemy_spawner = EnemySpawner(enemies, 1, 3)
+                        if selected_level % 5 == 2:
+                            enemy_spawner = EnemySpawner(enemies, 2, 3)
+                        if selected_level % 5 == 3:
+                            enemy_spawner = EnemySpawner(enemies, 2, 4)
+                        if selected_level % 5 == 4:
+                            enemy_spawner = EnemySpawner(enemies, 2, 5)
+                            enemy_spawner.spawn_delay += 60
+                        if selected_level % 5 == 0:
+                            enemy_spawner = EnemySpawner(enemies, 3, 5)
+                            enemy_spawner.spawn_delay += 60
+
+                        if selected_level <= 5:
+                            map = t1_background
+                        if 6 <= selected_level <= 10:
+                            map = t2_background
+                        if selected_level >= 11:
+                            map = t3_background
+
+
+                        game_state = "play"
+                        pygame.event.clear(pygame.MOUSEBUTTONDOWN)
+                        pygame.event.clear(pygame.MOUSEBUTTONUP)
     
     if game_state == "title":
         screen.blit(title_background, (0, 0))
@@ -255,7 +326,7 @@ while running:
         pygame.display.flip()
     
     elif game_state == "over":
-        screen.blit(l1_background, (0, 0))
+        screen.blit(map, (0, 0))
         screen.blit(player.original_image, player.rect)
         draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
         font = pygame.font.Font(None, 74)
@@ -265,12 +336,35 @@ while running:
             text = font.render("You Lose!", True, (255, 255, 255))
 
         screen.blit(text, text.get_rect(center=(400, 300)))
+        screen.blit(continue_button, continue_button_rect)
+        pygame.display.flip()
+
+    elif game_state == "level":
+        screen.fill((255, 255, 255))
+        # Title text
+        title_surface = level_font_title.render("Level Select", True, (0, 0, 0))
+        title_rect = title_surface.get_rect(center=(400, 70))
+        screen.blit(title_surface, title_rect)
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        for rect, label in level_buttons:
+            # Change color if hovered
+            color = (200, 100, 30) if rect.collidepoint(mouse_pos) else (150, 75, 0)
+            pygame.draw.rect(screen, color, rect, border_radius=15)
+            # Draw label centered
+            text_surf = level_font_button.render(label, True, (255, 255, 255))
+            text_rect = text_surf.get_rect(center=rect.center)
+            screen.blit(text_surf, text_rect)
+
+        
+
         pygame.display.flip()
 
     elif game_state == "play":
         current_play_time = pygame.time.get_ticks()
         if play_start_time is not None and current_play_time - play_start_time > 2000:
-            l1.spawn_enemies()
+            enemy_spawner.spawn_enemies()
             play_start_time = None
 
         # Set up inputs
@@ -297,7 +391,7 @@ while running:
         enemies.update(player.location)
         player.update()
         if play_start_time is None:
-            l1.update()
+            enemy_spawner.update()
 
         if player.main_attacking:
             for enemy in enemies:
@@ -311,22 +405,25 @@ while running:
             damaged_enemies["damaged"] = []
             for enemy in enemies:
                 if pygame.sprite.collide_mask(player, enemy):
-                    if enemy not in damaged_enemies["attacked"]:
+                    if enemy not in damaged_enemies["attacked"]["cooldown"]:
                         player.health -= enemy.damage
-                        damaged_enemies["attacked"].append(enemy)
+                        damaged_enemies["attacked"]["cooldown"].append(enemy)
+                        if enemy not in damaged_enemies["attacked"]["tick_damage"]:
+                            damaged_enemies["attacked"]["tick_damage"].append(enemy)
                         enemy.cooldown = 2*60
 
                 
-            for enemy in damaged_enemies["attacked"]:
+            for enemy in damaged_enemies["attacked"]["tick_damage"]:
                 enemy.health -= (0.1/60)*enemy.max_health
-                enemy.cooldown -= 1
-                if enemy.cooldown <= 0:
-                    damaged_enemies["attacked"].remove(enemy)
+                if enemy in damaged_enemies["attacked"]["cooldown"]:
+                    enemy.cooldown -= 1
+                if enemy.cooldown <= 0 and enemy in damaged_enemies["attacked"]["cooldown"]:
+                    damaged_enemies["attacked"]["cooldown"].remove(enemy)
                 if enemy.health <= 0:
                     enemies.remove(enemy)
             
 
-        screen.blit(l1_background, (0, 0))
+        screen.blit(map, (0, 0))
         screen.blit(player.image, player.rect)
         draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
         enemies.draw(screen)
@@ -337,7 +434,7 @@ while running:
             game_state = "over"
             status = "loss"
 
-        elif l1.current_wave >= l1.total_waves and len(enemies) == 0:
+        elif enemy_spawner.current_wave >= enemy_spawner.total_waves and len(enemies) == 0:
             game_state = "over"
             status = "win"
 
