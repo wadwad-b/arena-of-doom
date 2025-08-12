@@ -1,4 +1,4 @@
-import pygame
+import pygame, random
 pygame.init()
 
 # Set up display & music
@@ -12,6 +12,43 @@ game_state = "title"
 
 
 # Utility functions
+def spawn_enemies(difficulty, enemy_group):
+    # Difficulty controls:
+    # Number of enemies: difficulty * 2 (for example)
+    # Health range: 10 * difficulty to 20 * difficulty
+    # Damage range: 1 * difficulty to 5 * difficulty
+
+    num_enemies = int(difficulty * 2)
+    health_min = 10 * difficulty
+    health_max = 20 * difficulty
+    damage_min = 1 * difficulty
+    damage_max = 5 * difficulty
+
+    screen_width, screen_height = 800, 600
+    spawn_margin = 50  # how far offscreen enemies spawn
+
+    for _ in range(num_enemies):
+        # Random side: 0=top, 1=right, 2=bottom, 3=left
+        side = random.randint(0, 3)
+
+        if side == 0:  # top
+            x = random.uniform(-spawn_margin, screen_width + spawn_margin)
+            y = -spawn_margin
+        elif side == 1:  # right
+            x = screen_width + spawn_margin
+            y = random.uniform(-spawn_margin, screen_height + spawn_margin)
+        elif side == 2:  # bottom
+            x = random.uniform(-spawn_margin, screen_width + spawn_margin)
+            y = screen_height + spawn_margin
+        else:  # left
+            x = -spawn_margin
+            y = random.uniform(-spawn_margin, screen_height + spawn_margin)
+
+        health = random.randint(health_min, health_max)
+        damage = random.randint(damage_min, damage_max)
+
+        enemy = Enemy(x, y, "spider", health, damage)
+        enemy_group.add(enemy)
 def keep_in_bounds(location, width, height):
     return [max(width, min(location[0], 800-width)), max(height, min(location[1], 600-height))]
 def update_pos(object, x, y, keep_object_in_bounds = True):
@@ -39,11 +76,13 @@ class Player(pygame.sprite.Sprite):
         )
         self.image = self.original_image
         self.rect = self.image.get_rect(center=tuple(self.location))
+        self.mask = pygame.mask.from_surface(self.image)
 
         self.speed = 1
         self.angle = 0
         self.main_attacking = False
         self.main_cooldown = 0
+        
 
         # Vector from center to pivot (negative y = down towards base of hilt)
         self.pivot_offset = pygame.Vector2(0, self.image.get_height() / 2)
@@ -80,37 +119,52 @@ class Player(pygame.sprite.Sprite):
 
                 offset_rotated = self.pivot_offset.rotate(-self.angle)
                 self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
+                self.mask = pygame.mask.from_surface(self.image)
 
 
         if self.main_cooldown > 0:
             self.main_cooldown -= 1
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, type, health, damage):
         super().__init__()
-        self.image = pygame.transform.scale(
-            pygame.image.load("assets/sprites/enemy.png").convert_alpha(),
-            (50, 50)
+        if type == "spider":
+            self.original_image = pygame.transform.scale(
+                pygame.image.load("assets/sprites/enemy-spider.png").convert_alpha(),
+                (50, 50)
         )
+        self.image = self.original_image
         self.rect = self.image.get_rect(center=(x, y))
+        self.mask = pygame.mask.from_surface(self.image)
         self.location = pygame.math.Vector2(x, y)
-        self.speed = 1.5  # enemy movement speed
+        self.speed = 1.5
+        self.health = health
+        self.damage = damage
 
     def update(self, player_location):
-        # Calculate direction vector from enemy to player
+        # Calculate vector to player
         direction = pygame.math.Vector2(player_location) - self.location
         if direction.length() != 0:
-            direction = direction.normalize()  # get unit vector
-        
-        # Move enemy toward player
-        self.location += direction * self.speed
-        
-        # Update rect position
-        self.rect.center = (round(self.location.x), round(self.location.y))
+            direction = direction.normalize()
+
+            # Move enemy toward player
+            self.location += direction * self.speed
+
+            # Calculate angle in degrees to face player
+            # pygame's y-axis is down, so adjust accordingly:
+            angle = direction.angle_to(pygame.math.Vector2(0, -1))
+
+            # Rotate image so it faces the player
+            self.image = pygame.transform.rotate(self.original_image, angle)
+            self.rect = self.image.get_rect(center=(round(self.location.x), round(self.location.y)))
+            self.mask = pygame.mask.from_surface(self.image)
 
 # Set assets
 player = Player(400, 300)
 player.set_speed(2)
+
+enemies = pygame.sprite.Group()
+
 title_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
 l1_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
 
@@ -128,6 +182,7 @@ quit_button_rect = quit_button.get_rect(center=(550, 350))
 # Run game
 running = True
 clock = pygame.time.Clock()
+play_start_time = None
 
 while running:
     for event in pygame.event.get():
@@ -141,6 +196,8 @@ while running:
                 if play_button_mask.get_at((local_x, local_y)):
                     game_state = "play"
                     player.main_cooldown = 2*60
+                    play_start_time = pygame.time.get_ticks()
+
             if quit_button_rect.collidepoint(event.pos):
                 local_x = event.pos[0] - quit_button_rect.left
                 local_y = event.pos[1] - quit_button_rect.top
@@ -156,7 +213,11 @@ while running:
         screen.blit(quit_button, quit_button_rect)
         pygame.display.flip()
 
-    elif game_state == "play":   
+    elif game_state == "play":
+        current_play_time = pygame.time.get_ticks()
+        if play_start_time is not None and current_play_time - play_start_time > 2000:
+            spawn_enemies(1, enemies)
+            play_start_time = None
 
         # Set up inputs
         keys = pygame.key.get_pressed()
@@ -178,11 +239,14 @@ while running:
             player.right()
         if inputs["e"]:
             player.main_attack()
-        
+
+        enemies.update(player.location)
         player.update()
+        
 
         screen.blit(l1_background, (0, 0))
         screen.blit(player.image, player.rect)
+        enemies.draw(screen)
         
         pygame.display.flip()
         clock.tick(60)
