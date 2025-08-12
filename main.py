@@ -12,47 +12,19 @@ game_state = "title"
 
 
 # Utility functions
+damaged_enemies = {
+    "damaged": [],
+    "attacked": [],
+}
+wave_cooldown = 0
 def draw_health_bar(surface, x, y, width, height, current, maximum):
     if maximum <= 0:
         return
-    ratio = current / maximum
+    ratio = max(0, min(current / maximum, 1))  # clamp ratio between 0 and 1
     pygame.draw.rect(surface, (255, 0, 0), (x, y, width, height))
-    pygame.draw.rect(surface, (0, 255, 0), (x, y, width * ratio, height))
+    pygame.draw.rect(surface, (0, 255, 0), (x, y, int(width * ratio), height))  # int cast here
     pygame.draw.rect(surface, (0, 0, 0), (x, y, width, height), 2)
 
-def spawn_enemies(difficulty, enemy_group):
-
-    num_enemies = int(difficulty * 2)
-    health_min = 20 * difficulty
-    health_max = 40 * difficulty
-    damage_min = 1 * difficulty
-    damage_max = 5 * difficulty
-
-    screen_width, screen_height = 800, 600
-    spawn_margin = 50  # how far offscreen enemies spawn
-
-    for _ in range(num_enemies):
-        # Random side: 0=top, 1=right, 2=bottom, 3=left
-        side = random.randint(0, 3)
-
-        if side == 0:  # top
-            x = random.uniform(-spawn_margin, screen_width + spawn_margin)
-            y = -spawn_margin
-        elif side == 1:  # right
-            x = screen_width + spawn_margin
-            y = random.uniform(-spawn_margin, screen_height + spawn_margin)
-        elif side == 2:  # bottom
-            x = random.uniform(-spawn_margin, screen_width + spawn_margin)
-            y = screen_height + spawn_margin
-        else:  # left
-            x = -spawn_margin
-            y = random.uniform(-spawn_margin, screen_height + spawn_margin)
-
-        health = random.randint(health_min, health_max)
-        damage = random.randint(damage_min, damage_max)
-
-        enemy = Enemy(x, y, "spider", health, damage)
-        enemy_group.add(enemy)
 def keep_in_bounds(location, width, height):
     return [max(width, min(location[0], 800-width)), max(height, min(location[1], 600-height))]
 def update_pos(object, x, y, keep_object_in_bounds = True):
@@ -146,6 +118,7 @@ class Enemy(pygame.sprite.Sprite):
         self.health = health
         self.max_health = health
         self.damage = damage
+        self.cooldown = 0
 
     def update(self, player_location):
         # Calculate vector to player
@@ -164,6 +137,55 @@ class Enemy(pygame.sprite.Sprite):
             self.image = pygame.transform.rotate(self.original_image, angle)
             self.rect = self.image.get_rect(center=(round(self.location.x), round(self.location.y)))
             self.mask = pygame.mask.from_surface(self.image)
+
+
+class EnemySpawner:
+    def __init__(self, enemy_group, difficulty):
+        self.enemy_group = enemy_group
+        self.current_wave = 1
+        self.wave_cooldown = 0  # ticks until next wave spawn allowed
+        self.spawn_delay = 5 * 60  # 5 seconds cooldown
+        self.difficulty = difficulty
+    
+    def spawn_enemies(self):
+        num_enemies = self.difficulty * self.current_wave * 2
+        health_min = 20 * self.current_wave * self.difficulty
+        health_max = 40 * self.current_wave * self.difficulty
+        damage_min = 5 * self.current_wave * self.difficulty
+        damage_max = 10 * self.current_wave * self.difficulty
+
+        screen_width, screen_height = 800, 600
+        spawn_margin = 50
+        
+        for _ in range(num_enemies):
+            side = random.randint(0, 3)
+            if side == 0:
+                x = random.uniform(-spawn_margin, screen_width + spawn_margin)
+                y = -spawn_margin
+            elif side == 1:
+                x = screen_width + spawn_margin
+                y = random.uniform(-spawn_margin, screen_height + spawn_margin)
+            elif side == 2:
+                x = random.uniform(-spawn_margin, screen_width + spawn_margin)
+                y = screen_height + spawn_margin
+            else:
+                x = -spawn_margin
+                y = random.uniform(-spawn_margin, screen_height + spawn_margin)
+            
+            health = random.randint(health_min, health_max)
+            damage = random.randint(damage_min, damage_max)
+            enemy = Enemy(x, y, "spider", health, damage)
+            self.enemy_group.add(enemy)
+        
+        print(f"Wave {self.current_wave} spawned with {num_enemies} enemies!")
+        self.current_wave += 1
+        self.wave_cooldown = self.spawn_delay
+    
+    def update(self):
+        if self.wave_cooldown == 0:
+            self.spawn_enemies()
+        elif self.wave_cooldown > 0:
+            self.wave_cooldown -= 1
 
 # Set assets
 player = Player(400, 300)
@@ -189,6 +211,8 @@ quit_button_rect = quit_button.get_rect(center=(550, 350))
 running = True
 clock = pygame.time.Clock()
 play_start_time = None
+
+l1 = EnemySpawner(enemies, 1)
 
 while running:
     for event in pygame.event.get():
@@ -228,7 +252,7 @@ while running:
     elif game_state == "play":
         current_play_time = pygame.time.get_ticks()
         if play_start_time is not None and current_play_time - play_start_time > 2000:
-            spawn_enemies(1, enemies)
+            l1.spawn_enemies()
             play_start_time = None
 
         # Set up inputs
@@ -254,20 +278,34 @@ while running:
 
         enemies.update(player.location)
         player.update()
+        if play_start_time is None:
+            l1.update()
 
         if player.main_attacking:
             for enemy in enemies:
                 if pygame.sprite.collide_mask(player, enemy):
-                    enemy.health -= 10
+                    if enemy not in damaged_enemies["damaged"]:
+                        enemy.health -= 10
+                        damaged_enemies["damaged"].append(enemy)
                     if enemy.health <= 0:
                         enemies.remove(enemy)
         else:
+            damaged_enemies["damaged"] = []
             for enemy in enemies:
                 if pygame.sprite.collide_mask(player, enemy):
-                    player.health -= enemy.damage
-                    enemy.kill()
+                    if enemy not in damaged_enemies["attacked"]:
+                        player.health -= enemy.damage
+                        damaged_enemies["attacked"].append(enemy)
+                        enemy.cooldown = 2*60
                     if player.health <= 0:
                         enemies.remove(enemy)
+            for enemy in damaged_enemies["attacked"]:
+                enemy.health -= (0.1/60)*enemy.max_health
+                enemy.cooldown -= 1
+                if enemy.cooldown <= 0:
+                    damaged_enemies["attacked"].remove(enemy)
+                if enemy.health <= 0:
+                    enemies.remove(enemy)
 
         
 
@@ -276,9 +314,7 @@ while running:
         draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
         enemies.draw(screen)
         for enemy in enemies:
-            print(f"Enemy Health: {enemy.health}/{enemy.max_health}, Enemy Damage: {enemy.damage}")
-            draw_health_bar(screen, enemy.rect.centerx - 15, enemy.rect.bottom + 5, 30, 4, enemy.health, enemy.max_health)
-
+            draw_health_bar(screen, enemy.rect.centerx - 20, enemy.rect.bottom + 5, 40, 6, enemy.health, enemy.max_health)
 
         pygame.display.flip()
         clock.tick(60)
