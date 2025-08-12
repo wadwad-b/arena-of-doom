@@ -140,19 +140,20 @@ class Enemy(pygame.sprite.Sprite):
 
 
 class EnemySpawner:
-    def __init__(self, enemy_group, difficulty):
+    def __init__(self, enemy_group, difficulty, waves):
         self.enemy_group = enemy_group
         self.current_wave = 1
         self.wave_cooldown = 0  # ticks until next wave spawn allowed
+        self.total_waves = waves
         self.spawn_delay = 5 * 60  # 5 seconds cooldown
         self.difficulty = difficulty
     
     def spawn_enemies(self):
-        num_enemies = self.difficulty * self.current_wave * 2
-        health_min = 20 * self.current_wave * self.difficulty
-        health_max = 40 * self.current_wave * self.difficulty
-        damage_min = 5 * self.current_wave * self.difficulty
-        damage_max = 10 * self.current_wave * self.difficulty
+        num_enemies = self.current_wave + 1
+        health_min = int(20 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
+        health_max = int(40 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
+        damage_min = int(5 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
+        damage_max = int(10 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
 
         screen_width, screen_height = 800, 600
         spawn_margin = 50
@@ -182,10 +183,14 @@ class EnemySpawner:
         self.wave_cooldown = self.spawn_delay
     
     def update(self):
-        if self.wave_cooldown == 0:
+        if self.wave_cooldown == 0 and self.current_wave <= self.total_waves:
             self.spawn_enemies()
         elif self.wave_cooldown > 0:
             self.wave_cooldown -= 1
+
+            
+
+
 
 # Set assets
 player = Player(400, 300)
@@ -212,7 +217,7 @@ running = True
 clock = pygame.time.Clock()
 play_start_time = None
 
-l1 = EnemySpawner(enemies, 1)
+l1 = EnemySpawner(enemies, 1, 3)
 
 while running:
     for event in pygame.event.get():
@@ -247,6 +252,19 @@ while running:
         screen.blit(title_text, title_text.get_rect(center=(400, 200)))
         screen.blit(play_button, play_button_rect)
         screen.blit(quit_button, quit_button_rect)
+        pygame.display.flip()
+    
+    elif game_state == "over":
+        screen.blit(l1_background, (0, 0))
+        screen.blit(player.original_image, player.rect)
+        draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
+        font = pygame.font.Font(None, 74)
+        if status == "win":
+            text = font.render("You Win!", True, (255, 255, 255))
+        elif status == "loss":
+            text = font.render("You Lose!", True, (255, 255, 255))
+
+        screen.blit(text, text.get_rect(center=(400, 300)))
         pygame.display.flip()
 
     elif game_state == "play":
@@ -297,8 +315,8 @@ while running:
                         player.health -= enemy.damage
                         damaged_enemies["attacked"].append(enemy)
                         enemy.cooldown = 2*60
-                    if player.health <= 0:
-                        enemies.remove(enemy)
+
+                
             for enemy in damaged_enemies["attacked"]:
                 enemy.health -= (0.1/60)*enemy.max_health
                 enemy.cooldown -= 1
@@ -306,8 +324,7 @@ while running:
                     damaged_enemies["attacked"].remove(enemy)
                 if enemy.health <= 0:
                     enemies.remove(enemy)
-
-        
+            
 
         screen.blit(l1_background, (0, 0))
         screen.blit(player.image, player.rect)
@@ -315,6 +332,14 @@ while running:
         enemies.draw(screen)
         for enemy in enemies:
             draw_health_bar(screen, enemy.rect.centerx - 20, enemy.rect.bottom + 5, 40, 6, enemy.health, enemy.max_health)
+        
+        if player.health <= 0:
+            game_state = "over"
+            status = "loss"
+
+        elif l1.current_wave >= l1.total_waves and len(enemies) == 0:
+            game_state = "over"
+            status = "win"
 
         pygame.display.flip()
         clock.tick(60)
