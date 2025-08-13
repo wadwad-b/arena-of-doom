@@ -94,20 +94,21 @@ class Player(pygame.sprite.Sprite):
             if mouse_pos is not None:
                 direction = pygame.Vector2(mouse_pos) - self.location
                 if direction.length() > 0:
-                    self.dash_vector = direction.normalize() * 216 / 6
-                    self.dash_frames_left = 6
+                    self.dash_vector = direction.normalize() * 216 / 36
+                    self.dash_frames_left = 36
                     if self.dash_vector.length() > 0:
                         self.main_attacking = True  # spins sword
                         self.special_cooldown = 600  # 10 sec at 60 FPS
                         self.damage *= 2
 
         elif move == "shockwave":
+            self.shockwave_frames_left = 36
+            self.enemies_to_shock = {}
             if enemies is not None:
                 for enemy in enemies:
                     dist = pygame.Vector2(enemy.rect.center) - pygame.Vector2(self.rect.center)
                     if dist.length() <= 200:
-                        # push back
-                        enemy.location += dist.normalize() * 50
+                        self.enemies_to_shock[enemy] = dist.normalize() * 144 / 36
                         # deal 10% current health
                         enemy.health -= enemy.health * 0.1
                 # create bullets around player
@@ -125,9 +126,9 @@ class Player(pygame.sprite.Sprite):
                 self.special_cooldown = 600
 
         elif move == "teleport":
-            if target_pos is not None:
-                self.location = list(target_pos)
-                self.rect.center = target_pos
+            if mouse_pos is not None:
+                self.location = pygame.math.Vector2(mouse_pos)
+                self.rect.center = tuple(mouse_pos)
                 self.special_cooldown = 600
 
         elif move == "sticky_syrup":
@@ -170,6 +171,12 @@ class Player(pygame.sprite.Sprite):
             self.rect.center = tuple(self.location)
         elif hasattr(self, "dash_frames_left")  and self.dash_frames_left == 0:
             self.damage /= 2
+
+        if hasattr(self, "shockwave_frames_left") and self.shockwave_frames_left > 0:
+            for enemy, shockwave_vector in self.enemies_to_shock.items():
+                enemy.location += shockwave_vector
+                enemy.rect.center = tuple(enemy.location)
+            self.shockwave_frames_left -= 1
 
         # --- Syrup effect countdown and enemy slowdown ---
         if hasattr(self, "syrup_active") and self.syrup_active > 0:
@@ -573,6 +580,7 @@ while running:
             "special_attack": keys[pygame.K_q] or mouse[2], 
         }
         movement_vector = pygame.Vector2(0, 0)
+        mouse_pos=pygame.mouse.get_pos()
         if inputs["up"]:
             player.up()
             movement_vector.y = -1
@@ -588,7 +596,7 @@ while running:
         if inputs["main_attack"]:
             player.main_attack()
         if inputs["special_attack"]:
-            player.special_attack("dash", mouse_pos=pygame.mouse.get_pos())
+            player.special_attack("shockwave", mouse_pos=mouse_pos, enemies=enemies)
 
         enemies.update(player.location)
         player.update(enemies=enemies)
