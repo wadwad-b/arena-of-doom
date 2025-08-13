@@ -379,6 +379,10 @@ continue_button = pygame.transform.scale(pygame.image.load("assets/buttons/conti
 continue_button_mask = pygame.mask.from_surface(continue_button)
 continue_button_rect = continue_button.get_rect(center=(400, 500))
 
+powerup_button = pygame.transform.scale(pygame.image.load("assets/buttons/powerup.png").convert_alpha(), (100, 100))
+powerup_button_mask = pygame.mask.from_surface(powerup_button)
+
+
 menu_button = pygame.transform.scale(pygame.image.load("assets/buttons/menu.png").convert_alpha(), (200, 200))
 menu_button_mask = pygame.mask.from_surface(menu_button)
 menu_button_rect = menu_button.get_rect(center=(400, 500))
@@ -478,10 +482,13 @@ while running:
                 enemies.empty()
                 player.main_attacking = False
 
+
         if game_state == "level" and event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 if menu_button_rect.collidepoint(event.pos):
                     game_state = "title"
+                if powerup_button_rect.collidepoint(event.pos):
+                    game_state = "powerup"
                 for rect, label in level_buttons:
                     if rect.collidepoint(event.pos):
                         print(f"Selected {label}")
@@ -562,6 +569,9 @@ while running:
         title_surface = level_font_title.render("Level Select", True, (0, 0, 0))
         title_rect = title_surface.get_rect(center=(400, 70))
         screen.blit(title_surface, title_rect)
+
+        powerup_button_rect = powerup_button.get_rect(center=(100, 70))
+        screen.blit(powerup_button, powerup_button_rect)
 
         mouse_pos = pygame.mouse.get_pos()
 
