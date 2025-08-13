@@ -44,7 +44,7 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
 
-        self.location = [x, y]
+        self.location = pygame.math.Vector2(x, y)
 
         # Store original, unrotated sword image
         self.original_image = pygame.transform.scale(
@@ -61,9 +61,14 @@ class Player(pygame.sprite.Sprite):
         self.main_cooldown = 0
         self.health = 100
         self.max_health = 100
+        self.damage = 10
+
+        self.special_cooldown = 0
+        self.syrup_active = 0
 
         # Vector from center to pivot (negative y = down towards base of hilt)
         self.pivot_offset = pygame.Vector2(0, self.image.get_height() / 2)
+
 
     def set_speed(self, speed):
         self.speed = speed
@@ -82,33 +87,123 @@ class Player(pygame.sprite.Sprite):
             self.main_attacking = True
             self.angle = 0
     
-    def update(self):
+    def special_attack(self, move=None, mouse_pos=None, enemies=None, target_pos=None):
+        if self.special_cooldown > 0 or move is None:
+            return
+        if move == "dash":
+            if mouse_pos is not None:
+                direction = pygame.Vector2(mouse_pos) - self.location
+                if direction.length() > 0:
+                    self.dash_vector = direction.normalize() * 216 / 6
+                    self.dash_frames_left = 6
+                    if self.dash_vector.length() > 0:
+                        self.main_attacking = True  # spins sword
+                        self.special_cooldown = 600  # 10 sec at 60 FPS
+                        self.damage *= 2
+
+        elif move == "shockwave":
+            if enemies is not None:
+                for enemy in enemies:
+                    dist = pygame.Vector2(enemy.rect.center) - pygame.Vector2(self.rect.center)
+                    if dist.length() <= 200:
+                        # push back
+                        enemy.location += dist.normalize() * 50
+                        # deal 10% current health
+                        enemy.health -= enemy.health * 0.1
+                # create bullets around player
+                bullets = []
+                for i in range(6):
+                    angle = i * (360 / 6)
+                    direction = pygame.Vector2(0, -1).rotate(angle)
+                    bullets.append({
+                        "pos": pygame.Vector2(self.location),
+                        "dir": direction,
+                        "speed": 8,
+                        "damage": 0.75  # 75% of max health
+                    })
+                self.active_bullets = bullets  # store bullets somewhere in player
+                self.special_cooldown = 600
+
+        elif move == "teleport":
+            if target_pos is not None:
+                self.location = list(target_pos)
+                self.rect.center = target_pos
+                self.special_cooldown = 600
+
+        elif move == "sticky_syrup":
+            self.syrup_active = 180  # 3 seconds at 60 FPS
+            self.special_cooldown = 600
+    
+    def update(self, enemies=None):
+        # --- Sword spinning logic ---
         if self.main_attacking:
             if self.angle >= 360:
                 self.angle = 0
                 self.main_attacking = False
                 self.main_cooldown = 2*60
-
                 self.image = self.original_image
                 self.rect = self.image.get_rect(center=self.location)
             else:
                 self.angle += 15
                 self.image = pygame.transform.rotate(self.original_image, self.angle)
-
                 offset_rotated = self.pivot_offset.rotate(-self.angle)
                 self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
                 self.mask = pygame.mask.from_surface(self.image)
         else:
             self.angle = 0
             self.image = pygame.transform.rotate(self.original_image, self.angle)
-
             offset_rotated = self.pivot_offset.rotate(-self.angle)
             self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
             self.mask = pygame.mask.from_surface(self.image)
 
-
+        # --- Main attack cooldown ---
         if self.main_cooldown > 0:
             self.main_cooldown -= 1
+
+        # --- Special attack cooldown ---
+        if hasattr(self, "special_cooldown") and self.special_cooldown > 0:
+            self.special_cooldown -= 1
+        
+        if hasattr(self, "dash_frames_left") and self.dash_frames_left > 0:
+            self.location += self.dash_vector
+            self.dash_frames_left -= 1
+            self.rect.center = tuple(self.location)
+        elif hasattr(self, "dash_frames_left")  and self.dash_frames_left == 0:
+            self.damage /= 2
+
+        # --- Syrup effect countdown and enemy slowdown ---
+        if hasattr(self, "syrup_active") and self.syrup_active > 0:
+            self.syrup_active -= 1
+            if enemies is not None:
+                for enemy in enemies:
+                    enemy.speed = 0.4  # slow all enemies
+        elif enemies is not None:
+            for enemy in enemies:
+                enemy.speed = enemy.original_speed  # restore normal speed
+
+        # --- Active bullets logic (from shockwave) ---
+        if hasattr(self, "active_bullets") and enemies is not None:
+            remaining_bullets = []
+            for bullet in self.active_bullets:
+                # Move bullet
+                bullet["pos"] += bullet["dir"] * bullet["speed"]
+                
+                # Draw bullet (pill-shaped)
+                bullet_rect = pygame.Rect(0, 0, 12, 6)
+                bullet_rect.center = bullet["pos"]
+                pygame.draw.ellipse(pygame.display.get_surface(), (255, 255, 0), bullet_rect)
+                
+                # Check collision with enemies
+                hit_enemy = None
+                for enemy in enemies:
+                    if enemy.rect.collidepoint(bullet["pos"]):
+                        damage = int(enemy.max_health * bullet["damage"])
+                        enemy.health -= damage
+                        hit_enemy = enemy
+                        break
+                if hit_enemy is None:
+                    remaining_bullets.append(bullet)  # keep bullet if it hasn't hit
+            self.active_bullets = remaining_bullets
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y, type, health, damage):
@@ -134,7 +229,8 @@ class Enemy(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=(x, y))
         self.mask = pygame.mask.from_surface(self.image)
         self.location = pygame.math.Vector2(x, y)
-        self.speed = 1.5
+        self.original_speed = 1.5
+        self.speed = self.original_speed
         self.health = health
         self.max_health = health
         self.damage = damage
@@ -277,6 +373,7 @@ running = True
 clock = pygame.time.Clock()
 play_start_time = None
 
+game_over_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 96)
 level_font_title = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 48)
 level_font_button = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 28)
 infinity_title_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 36)
@@ -327,9 +424,6 @@ while running:
                 local_y = event.pos[1] - quit_button_rect.top
                 if quit_button_mask.get_at((local_x, local_y)):
                     running = False
-
-        if game_state == "play" and event.type == pygame.MOUSEBUTTONDOWN:
-            player.main_attack()
 
         if game_state == "over" and event.type == pygame.MOUSEBUTTONUP:
             if continue_button_rect.collidepoint(event.pos):
@@ -390,14 +484,15 @@ while running:
     elif game_state == "over":
         screen.blit(freeze_end_level, (0, 0))
         player.main_attacking = False
-        draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
-        font = pygame.font.Font(None, 74)
         if status == "win":
-            text = font.render("You Win!", True, (255, 255, 255))
+            text = game_over_font.render("You Win!", True, (255, 255, 255))
         elif status == "loss":
-            text = font.render("You Lose!", True, (255, 255, 255))
+            text = game_over_font.render("You Lose!", True, (255, 255, 255))
+        text_rect = text.get_rect(center=(400, 300))
+        text_box = text_rect.inflate(40, 40)
 
-        screen.blit(text, text.get_rect(center=(400, 300)))
+        pygame.draw.rect(screen, (150, 75, 0), text_box, border_radius=15)
+        screen.blit(text, text_rect)
         screen.blit(continue_button, continue_button_rect)
         pygame.display.flip()
         clock.tick(60)
@@ -468,27 +563,35 @@ while running:
 
         # Set up inputs
         keys = pygame.key.get_pressed()
+        mouse = pygame.mouse.get_pressed()
         inputs = {
             "up": keys[pygame.K_w] or keys[pygame.K_UP],
             "down": keys[pygame.K_s] or keys[pygame.K_DOWN],
             "left": keys[pygame.K_a] or keys[pygame.K_LEFT],
             "right": keys[pygame.K_d] or keys[pygame.K_RIGHT],
-            "e": keys[pygame.K_e], 
+            "main_attack": keys[pygame.K_e] or mouse[0], 
+            "special_attack": keys[pygame.K_q] or mouse[2], 
         }
-
+        movement_vector = pygame.Vector2(0, 0)
         if inputs["up"]:
             player.up()
+            movement_vector.y = -1
         if inputs["down"]: 
             player.down()
+            movement_vector.y = 1
         if inputs["left"]:
             player.left()
+            movement_vector.x = -1
         if inputs["right"]:
             player.right()
-        if inputs["e"]:
+            movement_vector.x = 1
+        if inputs["main_attack"]:
             player.main_attack()
+        if inputs["special_attack"]:
+            player.special_attack("dash", mouse_pos=pygame.mouse.get_pos())
 
         enemies.update(player.location)
-        player.update()
+        player.update(enemies=enemies)
         if play_start_time is None:
             enemy_spawner.update()
 
@@ -496,7 +599,7 @@ while running:
             for enemy in enemies:
                 if pygame.sprite.collide_mask(player, enemy):
                     if enemy not in damaged_enemies["damaged"]:
-                        enemy.health -= 10
+                        enemy.health -= player.damage
                         damaged_enemies["damaged"].append(enemy)
                     if enemy.health <= 0:
                         enemies.remove(enemy)
