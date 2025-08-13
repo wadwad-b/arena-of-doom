@@ -98,6 +98,13 @@ class Player(pygame.sprite.Sprite):
                 offset_rotated = self.pivot_offset.rotate(-self.angle)
                 self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
                 self.mask = pygame.mask.from_surface(self.image)
+        else:
+            self.angle = 0
+            self.image = pygame.transform.rotate(self.original_image, self.angle)
+
+            offset_rotated = self.pivot_offset.rotate(-self.angle)
+            self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
+            self.mask = pygame.mask.from_surface(self.image)
 
 
         if self.main_cooldown > 0:
@@ -111,6 +118,18 @@ class Enemy(pygame.sprite.Sprite):
                 pygame.image.load("assets/sprites/enemy-spider.png").convert_alpha(),
                 (50, 50)
         )
+        elif type == "shark":
+            self.original_image = pygame.transform.scale(
+                pygame.image.load("assets/sprites/enemy-shark.png").convert_alpha(),
+                (60, 60)
+            )
+        elif type == "fennec fox":
+            self.original_image = pygame.transform.scale(
+                pygame.image.load("assets/sprites/enemy-fennec-fox.png").convert_alpha(),
+                (60, 60)
+            )
+        else:
+            raise ValueError(f"Unknown enemy type: {type}")
         self.image = self.original_image
         self.rect = self.image.get_rect(center=(x, y))
         self.mask = pygame.mask.from_surface(self.image)
@@ -141,13 +160,14 @@ class Enemy(pygame.sprite.Sprite):
 
 
 class EnemySpawner:
-    def __init__(self, enemy_group, difficulty, waves):
+    def __init__(self, enemy_group, type, difficulty, waves):
         self.enemy_group = enemy_group
         self.current_wave = 1
         self.wave_cooldown = 0
         self.total_waves = waves
         self.spawn_delay = 5 * 60 
         self.difficulty = difficulty
+        self.type = type
     
     def spawn_enemies(self):
         num_enemies = self.current_wave + 1
@@ -176,7 +196,7 @@ class EnemySpawner:
             
             health = random.randint(health_min, health_max)
             damage = random.randint(damage_min, damage_max)
-            enemy = Enemy(x, y, "spider", health, damage)
+            enemy = Enemy(x, y, self.type, health, damage)
             self.enemy_group.add(enemy)
         
         print(f"Wave {self.current_wave} spawned with {num_enemies} enemies!")
@@ -329,25 +349,30 @@ while running:
                         player.main_cooldown = 2*60
                         play_start_time = pygame.time.get_ticks()
 
-                        if selected_level % 5 == 1:
-                            enemy_spawner = EnemySpawner(enemies, 1, 3)
-                        if selected_level % 5 == 2:
-                            enemy_spawner = EnemySpawner(enemies, 2, 3)
-                        if selected_level % 5 == 3:
-                            enemy_spawner = EnemySpawner(enemies, 2, 4)
-                        if selected_level % 5 == 4:
-                            enemy_spawner = EnemySpawner(enemies, 2, 5)
-                            enemy_spawner.spawn_delay += 60
-                        if selected_level % 5 == 0:
-                            enemy_spawner = EnemySpawner(enemies, 3, 5)
-                            enemy_spawner.spawn_delay += 60
-
                         if selected_level <= 5:
                             map = t1_background
+                            enemy_type = "spider"
                         if 6 <= selected_level <= 10:
                             map = t2_background
+                            enemy_type = "fennec fox"  
                         if selected_level >= 11:
                             map = t3_background
+                            enemy_type = "shark"
+
+                        if selected_level % 5 == 1:
+                            enemy_spawner = EnemySpawner(enemies, enemy_type, 1, 3)
+                        if selected_level % 5 == 2:
+                            enemy_spawner = EnemySpawner(enemies, enemy_type, 2, 3)
+                        if selected_level % 5 == 3:
+                            enemy_spawner = EnemySpawner(enemies, enemy_type, 2, 4)
+                        if selected_level % 5 == 4:
+                            enemy_spawner = EnemySpawner(enemies, enemy_type, 2, 5)
+                            enemy_spawner.spawn_delay += 60
+                        if selected_level % 5 == 0:
+                            enemy_spawner = EnemySpawner(enemies, enemy_type, 3, 5)
+                            enemy_spawner.spawn_delay += 120
+
+                        
 
 
                         game_state = "play"
@@ -363,8 +388,8 @@ while running:
         clock.tick(60)
     
     elif game_state == "over":
-        screen.blit(map, (0, 0))
-        screen.blit(player.original_image, player.rect)
+        screen.blit(freeze_end_level, (0, 0))
+        player.main_attacking = False
         draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
         font = pygame.font.Font(None, 74)
         if status == "win":
@@ -432,7 +457,6 @@ while running:
         screen.blit(menu_button, menu_button_rect)
 
         
-
         pygame.display.flip()
         clock.tick(60)
 
@@ -508,6 +532,9 @@ while running:
         elif enemy_spawner.current_wave >= enemy_spawner.total_waves and len(enemies) == 0:
             game_state = "over"
             status = "win"
+
+        
+        freeze_end_level = screen.copy()
 
         pygame.display.flip()
         clock.tick(60)
