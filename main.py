@@ -18,6 +18,50 @@ damaged_enemies = {
     "attacked": [],
 }
 wave_cooldown = 0
+def draw_top_info_bar():
+    info_bar_height = 80
+    info_bar_padding = 10
+    bar_width = 220
+    bar_height = 20
+    label_padding = 4  # spacing between label and bar
+    vertical_shift = 30  # shift everything down
+
+    # Draw top HUD background
+    pygame.draw.rect(screen, (30, 30, 30), (0, 0, 800, info_bar_height))
+
+    # --- Main Attack Cooldown Bar (Left) ---
+    main_ratio = 1 - player.main_cooldown / (2*60)
+    main_ratio = max(0, min(1, main_ratio))
+
+    # Draw label above bar
+    main_label = info_bar_font.render("Main Attack Cooldown", True, (255, 255, 255))
+    main_label_rect = main_label.get_rect(midbottom=(info_bar_padding + bar_width//2, info_bar_padding + vertical_shift))
+    screen.blit(main_label, main_label_rect)
+
+    # Draw background and filled bar
+    bar_y = main_label_rect.bottom + label_padding
+    pygame.draw.rect(screen, (100, 100, 100), (info_bar_padding, bar_y, bar_width, bar_height))
+    pygame.draw.rect(screen, (0, 200, 0), (info_bar_padding, bar_y, bar_width * main_ratio, bar_height))
+
+    # --- Level Text (Middle) ---
+    level_text = level_font_title.render(f"Level {selected_level}", True, (255, 255, 255))
+    level_rect = level_text.get_rect(center=(400, info_bar_height//2))
+    screen.blit(level_text, level_rect)
+
+    # --- Special Attack Cooldown Bar (Right) ---
+    special_ratio = 1 - player.special_cooldown / 600
+    special_ratio = max(0, min(1, special_ratio))
+
+    # Draw label above bar
+    special_label = info_bar_font.render(f"{special_move} Cooldown", True, (255, 255, 255))
+    special_label_rect = special_label.get_rect(midbottom=(800 - info_bar_padding - bar_width//2, info_bar_padding + vertical_shift))
+    screen.blit(special_label, special_label_rect)
+
+    # Draw background and filled bar
+    bar_y = special_label_rect.bottom + label_padding
+    pygame.draw.rect(screen, (100, 100, 100), (800 - bar_width - info_bar_padding, bar_y, bar_width, bar_height))
+    pygame.draw.rect(screen, (0, 0, 200), (800 - bar_width - info_bar_padding, bar_y, bar_width * special_ratio, bar_height))
+
 def draw_health_bar(surface, x, y, width, height, current, maximum):
     if maximum <= 0:
         return
@@ -27,7 +71,9 @@ def draw_health_bar(surface, x, y, width, height, current, maximum):
     pygame.draw.rect(surface, (0, 0, 0), (x, y, width, height), 2)
 
 def keep_in_bounds(location, width, height):
-    return [max(width, min(location[0], 800-width)), max(height, min(location[1], 600-height))]
+    x = max(width, min(location[0], 800 - width))
+    y = max(80 + height, min(location[1], 600 - height))
+    return pygame.math.Vector2(x, y)
 def update_pos(object, x, y, keep_object_in_bounds = True):
     object.location[0] += x
     object.location[1] += y
@@ -90,18 +136,18 @@ class Player(pygame.sprite.Sprite):
     def special_attack(self, move=None, mouse_pos=None, enemies=None, target_pos=None):
         if self.special_cooldown > 0 or move is None:
             return
-        if move == "dash":
+        if move == "Dash":
             if mouse_pos is not None:
                 direction = pygame.Vector2(mouse_pos) - self.location
                 if direction.length() > 0:
                     self.dash_vector = direction.normalize() * 216 / 36
                     self.dash_frames_left = 36
                     if self.dash_vector.length() > 0:
-                        self.main_attacking = True  # spins sword
-                        self.special_cooldown = 600  # 10 sec at 60 FPS
-                        self.damage *= 2
+                        self.main_attacking = True 
+                        self.special_cooldown = 600  
+                        self.damage = 20
 
-        elif move == "shockwave":
+        elif move == "Shockwave":
             self.shockwave_frames_left = 36
             self.enemies_to_shock = {}
             if enemies is not None:
@@ -125,13 +171,13 @@ class Player(pygame.sprite.Sprite):
                 self.active_bullets = bullets  # store bullets somewhere in player
                 self.special_cooldown = 600
 
-        elif move == "teleport":
+        elif move == "Teleport":
             if mouse_pos is not None:
                 self.location = pygame.math.Vector2(mouse_pos)
                 self.rect.center = tuple(mouse_pos)
                 self.special_cooldown = 600
 
-        elif move == "sticky_syrup":
+        elif move == "Sticky Syrup":
             self.syrup_active = 180  # 3 seconds at 60 FPS
             self.special_cooldown = 600
     
@@ -169,8 +215,8 @@ class Player(pygame.sprite.Sprite):
             self.location += self.dash_vector
             self.dash_frames_left -= 1
             self.rect.center = tuple(self.location)
-        elif hasattr(self, "dash_frames_left")  and self.dash_frames_left == 0:
-            self.damage /= 2
+        elif hasattr(self, "dash_frames_left")  and not self.dash_frames_left > 0:
+            self.damage = 10
 
         if hasattr(self, "shockwave_frames_left") and self.shockwave_frames_left > 0:
             for enemy, shockwave_vector in self.enemies_to_shock.items():
@@ -192,15 +238,7 @@ class Player(pygame.sprite.Sprite):
         if hasattr(self, "active_bullets") and enemies is not None:
             remaining_bullets = []
             for bullet in self.active_bullets:
-                # Move bullet
                 bullet["pos"] += bullet["dir"] * bullet["speed"]
-                
-                # Draw bullet (pill-shaped)
-                bullet_rect = pygame.Rect(0, 0, 12, 6)
-                bullet_rect.center = bullet["pos"]
-                pygame.draw.ellipse(pygame.display.get_surface(), (255, 255, 0), bullet_rect)
-                
-                # Check collision with enemies
                 hit_enemy = None
                 for enemy in enemies:
                     if enemy.rect.collidepoint(bullet["pos"]):
@@ -209,7 +247,7 @@ class Player(pygame.sprite.Sprite):
                         hit_enemy = enemy
                         break
                 if hit_enemy is None:
-                    remaining_bullets.append(bullet)  # keep bullet if it hasn't hit
+                    remaining_bullets.append(bullet)
             self.active_bullets = remaining_bullets
 
 class Enemy(pygame.sprite.Sprite):
@@ -385,6 +423,7 @@ level_font_title = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 48
 level_font_button = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 28)
 infinity_title_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 36)
 infinity_subtitle_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 24)
+info_bar_font = pygame.font.Font("assets/fonts/MedievalSharp-Regular.ttf", 18)
 
 
 cols = 5
@@ -491,6 +530,10 @@ while running:
     elif game_state == "over":
         screen.blit(freeze_end_level, (0, 0))
         player.main_attacking = False
+        player.main_cooldown = 0
+        if hasattr(player, "active_bullets"):
+            player.active_bullets.clear()
+        player.special_cooldown = 0
         if status == "win":
             text = game_over_font.render("You Win!", True, (255, 255, 255))
         elif status == "loss":
@@ -563,6 +606,7 @@ while running:
         clock.tick(60)
 
     elif game_state == "play":
+        special_move = "Dash"
         current_play_time = pygame.time.get_ticks()
         if play_start_time is not None and current_play_time - play_start_time > 2000:
             enemy_spawner.spawn_enemies()
@@ -596,7 +640,7 @@ while running:
         if inputs["main_attack"]:
             player.main_attack()
         if inputs["special_attack"]:
-            player.special_attack("shockwave", mouse_pos=mouse_pos, enemies=enemies)
+            player.special_attack(special_move, mouse_pos=mouse_pos, enemies=enemies)
 
         enemies.update(player.location)
         player.update(enemies=enemies)
@@ -631,6 +675,27 @@ while running:
 
         screen.blit(map, (0, 0))
         screen.blit(player.image, player.rect)
+        if hasattr(player, "active_bullets"):
+            for bullet in player.active_bullets:
+                pos = bullet["pos"]
+                direction = bullet["dir"].normalize()
+                perp = pygame.Vector2(-direction.y, direction.x)  # perpendicular vector
+                
+                length = 12
+                width = 6
+                
+                # Triangle points
+                points = [
+                    pos + direction * length / 2,          # tip
+                    pos - direction * length / 2 + perp * width / 2,  # bottom right
+                    pos - direction * length / 2 - perp * width / 2,  # bottom left
+                ]
+                
+                pygame.draw.polygon(screen, (255, 255, 0), points)
+                
+                # Move bullet
+                bullet["pos"] += bullet["dir"] * bullet["speed"]
+
         draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
         enemies.draw(screen)
         for enemy in enemies:
@@ -644,7 +709,7 @@ while running:
             game_state = "over"
             status = "win"
 
-        
+        draw_top_info_bar()
         freeze_end_level = screen.copy()
 
         pygame.display.flip()
