@@ -7,6 +7,8 @@ pygame.display.set_caption("Arena of Doom")
 screen.fill((255, 255, 255))
 pygame.mixer.music.load("assets/audio/olympus.mp3")
 pygame.mixer.music.play(-1)
+
+attack_sound = pygame.mixer.Sound("assets/audio/sword-woosh.mp3")
 counter = 0
 
 game_state = "title"
@@ -144,7 +146,8 @@ class Player(pygame.sprite.Sprite):
         if not self.main_attacking and self.main_cooldown == 0:
             self.main_attacking = True
             self.angle = 0
-    
+            attack_sound.play()
+
     def special_attack(self, move=None, mouse_pos=None, enemies=None, target_pos=None):
         if self.special_cooldown > 0 or move is None:
             return
