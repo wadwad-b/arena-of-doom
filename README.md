@@ -1,7 +1,7 @@
 # Arena of Doom
 
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)  
-[![Pygame](https://img.shields.io/badge/pygame-2.5.0-green.svg)](https://www.pygame.org/news)  
+[![Python](https://img.shields.io/badge/python-3.13.5-blue.svg)](https://www.python.org/)  
+[![Pygame](https://img.shields.io/badge/pygame-2.6.1-green.svg)](https://www.pygame.org/news)  
 
 Arena of Doom is a 2D action combat game built with Python and Pygame. Players fight through waves of enemies across multiple levels, equip special moves, collect buffs, and test their skills in Infinity Mode.
 
