@@ -10,6 +10,8 @@ pygame.mixer.music.play(-1)
 counter = 0
 
 game_state = "title"
+powers = ["Dash", "Shockwave", "Teleport", "Sticky Syrup"]
+special_move = "Dash"
 
 
 # Utility functions
@@ -178,6 +180,10 @@ class Player(pygame.sprite.Sprite):
                 self.special_cooldown = 600
 
         elif move == "Sticky Syrup":
+            self.sticky_dict = {}
+            self.sticky_syrup_frames_left = 180
+            for enemy in enemies:
+                self.sticky_dict[enemy] = 0.1*enemy.health
             self.syrup_active = 180  # 3 seconds at 60 FPS
             self.special_cooldown = 600
     
@@ -223,6 +229,7 @@ class Player(pygame.sprite.Sprite):
                 enemy.location += shockwave_vector
                 enemy.rect.center = tuple(enemy.location)
             self.shockwave_frames_left -= 1
+    
 
         # --- Syrup effect countdown and enemy slowdown ---
         if hasattr(self, "syrup_active") and self.syrup_active > 0:
@@ -233,6 +240,11 @@ class Player(pygame.sprite.Sprite):
         elif enemies is not None:
             for enemy in enemies:
                 enemy.speed = enemy.original_speed  # restore normal speed
+
+        if hasattr(self, "sticky_syrup_frames_left") and self.sticky_syrup_frames_left > 0:
+            for enemy, health_to_remove in self.sticky_dict.items():
+                enemy.health -= health_to_remove / 180
+            self.sticky_syrup_frames_left -= 1
 
         # --- Active bullets logic (from shockwave) ---
         if hasattr(self, "active_bullets") and enemies is not None:
@@ -379,8 +391,9 @@ continue_button = pygame.transform.scale(pygame.image.load("assets/buttons/conti
 continue_button_mask = pygame.mask.from_surface(continue_button)
 continue_button_rect = continue_button.get_rect(center=(400, 500))
 
-powerup_button = pygame.transform.scale(pygame.image.load("assets/buttons/powerup.png").convert_alpha(), (100, 100))
-powerup_button_mask = pygame.mask.from_surface(powerup_button)
+special_move_button = pygame.transform.scale(pygame.image.load("assets/buttons/special-moves.png").convert_alpha(), (100, 100))
+special_move_button_mask = pygame.mask.from_surface(special_move_button)
+special_move_button_rect = special_move_button.get_rect(center=(100, 70))
 
 
 menu_button = pygame.transform.scale(pygame.image.load("assets/buttons/menu.png").convert_alpha(), (200, 200))
@@ -477,18 +490,27 @@ while running:
 
         if game_state == "over" and event.type == pygame.MOUSEBUTTONUP:
             if continue_button_rect.collidepoint(event.pos):
-                game_state = "level"
-                player.health = player.max_health
-                enemies.empty()
-                player.main_attacking = False
+                local_x = event.pos[0] - continue_button_rect.left
+                local_y = event.pos[1] - continue_button_rect.top
+                if continue_button_mask.get_at((local_x, local_y)):
+                    game_state = "level"
+                    player.health = player.max_health
+                    enemies.empty()
+                    player.main_attacking = False
 
 
         if game_state == "level" and event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 if menu_button_rect.collidepoint(event.pos):
-                    game_state = "title"
-                if powerup_button_rect.collidepoint(event.pos):
-                    game_state = "powerup"
+                    local_x = event.pos[0] - menu_button_rect.left
+                    local_y = event.pos[1] - menu_button_rect.top
+                    if menu_button_mask.get_at((local_x, local_y)):
+                        game_state = "title"
+                if special_move_button_rect.collidepoint(event.pos):
+                    local_x = event.pos[0] - special_move_button_rect.left
+                    local_y = event.pos[1] - special_move_button_rect.top
+                    if special_move_button_mask.get_at((local_x, local_y)):
+                        game_state = "special_move"
                 for rect, label in level_buttons:
                     if rect.collidepoint(event.pos):
                         print(f"Selected {label}")
@@ -523,6 +545,17 @@ while running:
 
 
                         game_state = "play"
+                        pygame.event.clear(pygame.MOUSEBUTTONDOWN)
+                        pygame.event.clear(pygame.MOUSEBUTTONUP)
+
+        if game_state == "special_move" and event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                mouse_pos = event.pos
+                for power, (btn_rect, text_rect) in sm_button_rects.items():
+                    if btn_rect.collidepoint(mouse_pos):
+                        special_move = power
+                        print(f"Selected special move: {special_move}")
+                        game_state = "level"
                         pygame.event.clear(pygame.MOUSEBUTTONDOWN)
                         pygame.event.clear(pygame.MOUSEBUTTONUP)
     
@@ -570,8 +603,7 @@ while running:
         title_rect = title_surface.get_rect(center=(400, 70))
         screen.blit(title_surface, title_rect)
 
-        powerup_button_rect = powerup_button.get_rect(center=(100, 70))
-        screen.blit(powerup_button, powerup_button_rect)
+        screen.blit(special_move_button, special_move_button_rect)
 
         mouse_pos = pygame.mouse.get_pos()
 
@@ -615,8 +647,63 @@ while running:
         pygame.display.flip()
         clock.tick(60)
 
+    elif game_state == "special_move":
+        counter += 1
+        if 0 <= counter <= 90:
+            screen.blit(t1_background, (0, 0))
+        elif 91 <= counter <= 180:
+            screen.blit(t2_background, (0, 0))
+        elif 181 <= counter <= 270:
+            screen.blit(t3_background, (0, 0))
+        else:
+            counter = 0
+
+        special_move_text = level_font_title.render("Special Move Select", True, (0, 0, 0))
+        special_move_text_rect = special_move_text.get_rect(center=(400, 70))
+        screen.blit(special_move_text, special_move_text_rect)
+
+        special_move_options = pygame.image.load("assets/text/special-moves.png").convert_alpha()
+        special_move_options = pygame.transform.scale(special_move_options, (800, 600))
+        screen.blit(special_move_options, (0, 20))
+
+        sm_button_width = 120
+        sm_button_height = 160
+        sm_start_x = [60, 263, 453, 640]
+        sm_y_pos = 350
+
+        sm_button_rects = {}
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        for i, power in enumerate(powers):
+            sm_x = sm_start_x[i]
+
+            # Determine button color based on state
+            if special_move == power:
+                color = (100, 50, 0)  # Darker for "In Use"
+            elif pygame.Rect(sm_x, sm_y_pos + sm_button_height + 10, sm_button_width, 40).collidepoint(mouse_pos):
+                color = (200, 100, 30)  # Hover color
+            else:
+                color = (150, 75, 0)    # Default color
+
+            # Draw button under the powerup
+            sm_btn_rect = pygame.Rect(sm_x, sm_y_pos + sm_button_height + 10, sm_button_width, 40)
+            pygame.draw.rect(screen, color, sm_btn_rect, border_radius=5)
+
+            # Button text
+            if special_move == power:
+                sm_text_surface = level_font_button.render("In Use", True, (255, 255, 255))
+            else:
+                sm_text_surface = level_font_button.render("Use This", True, (255, 255, 255))
+
+            sm_text_rect = sm_text_surface.get_rect(center=sm_btn_rect.center)
+            sm_button_rects[power] = [sm_btn_rect, sm_text_rect]
+            screen.blit(sm_text_surface, sm_text_rect)
+
+        pygame.display.flip()
+        clock.tick(60)
+
     elif game_state == "play":
-        special_move = "Dash"
         current_play_time = pygame.time.get_ticks()
         if play_start_time is not None and current_play_time - play_start_time > 2000:
             enemy_spawner.spawn_enemies()
