@@ -6,10 +6,28 @@ screen = pygame.display.set_mode((800, 600))
 pygame.display.set_caption("Arena of Doom")
 screen.fill((255, 255, 255))
 pygame.mixer.music.load("assets/audio/olympus.mp3")
+pygame.mixer.music.set_volume(0.05)
 pygame.mixer.music.play(-1)
 
+
+
 attack_sound = pygame.mixer.Sound("assets/audio/sword-woosh.mp3")
+dash_sound = pygame.mixer.Sound("assets/audio/dash-woosh.mp3")
+shockwave_sound = pygame.mixer.Sound("assets/audio/shockwave.mp3")
+teleport_sound = pygame.mixer.Sound("assets/audio/teleport.mp3")
+sticky_syrup_sound = pygame.mixer.Sound("assets/audio/sticky-syrup.mp3")
+button_sound = pygame.mixer.Sound("assets/audio/button.mp3")
+
+attack_sounds = [dash_sound, shockwave_sound, teleport_sound]
+for sound in attack_sounds:
+    sound.set_volume(0.07)
+
+attack_sound.set_volume(0.2)
+button_sound.set_volume(0.8)
+sticky_syrup_sound.set_volume(0.8)
+
 counter = 0
+all_buffs = []
 
 game_state = "title"
 powers = ["Dash", "Shockwave", "Teleport", "Sticky Syrup"]
@@ -108,14 +126,14 @@ class Player(pygame.sprite.Sprite):
 
         # Store original, unrotated sword image
         self.original_image = pygame.transform.scale(
-            pygame.image.load("assets/sprites/sword-player.png").convert_alpha(),
+            pygame.image.load("assets/sprites/characters/sword-player.png").convert_alpha(),
             (int(275/10), int(775/10))
         )
         self.image = self.original_image
         self.rect = self.image.get_rect(center=tuple(self.location))
         self.mask = pygame.mask.from_surface(self.image)
 
-        self.speed = 1
+        self.speed = 2
         self.angle = 0
         self.main_attacking = False
         self.main_cooldown = 0
@@ -129,9 +147,6 @@ class Player(pygame.sprite.Sprite):
         # Vector from center to pivot (negative y = down towards base of hilt)
         self.pivot_offset = pygame.Vector2(0, self.image.get_height() / 2)
 
-
-    def set_speed(self, speed):
-        self.speed = speed
 
     def up(self, amt=1):
         update_pos(self, 0, -amt*(self.speed))
@@ -161,10 +176,12 @@ class Player(pygame.sprite.Sprite):
                         self.main_attacking = True 
                         self.special_cooldown = 600  
                         self.damage = 20
+                        dash_sound.play()
 
         elif move == "Shockwave":
             self.shockwave_frames_left = 36
             self.enemies_to_shock = {}
+            shockwave_sound.play()
             if enemies is not None:
                 for enemy in enemies:
                     dist = pygame.Vector2(enemy.rect.center) - pygame.Vector2(self.rect.center)
@@ -172,6 +189,7 @@ class Player(pygame.sprite.Sprite):
                         self.enemies_to_shock[enemy] = dist.normalize() * 144 / 36
                         # deal 10% current health
                         enemy.health -= enemy.health * 0.1
+            
                 # create bullets around player
                 bullets = []
                 for i in range(6):
@@ -191,6 +209,7 @@ class Player(pygame.sprite.Sprite):
                 self.location = pygame.math.Vector2(mouse_pos)
                 self.rect.center = tuple(mouse_pos)
                 self.special_cooldown = 600
+                teleport_sound.play()
 
         elif move == "Sticky Syrup":
             self.sticky_dict = {}
@@ -199,7 +218,8 @@ class Player(pygame.sprite.Sprite):
                 self.sticky_dict[enemy] = 0.1*enemy.health
             self.syrup_active = 180  # 3 seconds at 60 FPS
             self.special_cooldown = 600
-    
+            sticky_syrup_sound.play()
+
     def update(self, enemies=None):
         # --- Sword spinning logic ---
         if self.main_attacking:
@@ -280,17 +300,17 @@ class Enemy(pygame.sprite.Sprite):
         super().__init__()
         if type == "spider":
             self.original_image = pygame.transform.scale(
-                pygame.image.load("assets/sprites/enemy-spider.png").convert_alpha(),
+                pygame.image.load("assets/sprites/characters/enemy-spider.png").convert_alpha(),
                 (50, 50)
         )
         elif type == "shark":
             self.original_image = pygame.transform.scale(
-                pygame.image.load("assets/sprites/enemy-shark.png").convert_alpha(),
+                pygame.image.load("assets/sprites/characters/enemy-shark.png").convert_alpha(),
                 (60, 60)
             )
         elif type == "fennec fox":
             self.original_image = pygame.transform.scale(
-                pygame.image.load("assets/sprites/enemy-fennec-fox.png").convert_alpha(),
+                pygame.image.load("assets/sprites/characters/enemy-fennec-fox.png").convert_alpha(),
                 (60, 60)
             )
         else:
@@ -379,16 +399,46 @@ class EnemySpawner:
         if self.wave_cooldown > 0:
             self.wave_cooldown -= 1
 
+class Buff(pygame.sprite.Sprite):
+    def __init__(self, type):
+        super().__init__()
+        self.buff_type = type
+        self.done = False
+        self.image = pygame.image.load(f"assets/sprites/buffs/{type}.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (40, 40))
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.location = pygame.math.Vector2(
+            random.randint(45, 755),
+            random.randint(95, 555)
+        )
+        self.rect.center = self.location
+        self.despawn_timer = 10 * 60
+        self.active = False
+        self.active_timer = 5 * 60
 
-            
-
-
+    def update(self):
+        global active_buff
+        if self.active == False:
+            self.despawn_timer -= 1
+            if self.despawn_timer <= 0:
+                self.kill()
+        elif self.active == True:
+            self.despawn_timer = 10 * 60
+            self.kill()
+            self.active_timer -= 1
+            if self.active_timer <= 0:
+                self.active = False
+                active_buff = None
+                self.done = True
+                
 
 # Set assets
 player = Player(400, 300)
-player.set_speed(2)
 
 enemies = pygame.sprite.Group()
+buff_group = pygame.sprite.Group()
+active_buff = None
 
 title_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/arena.jpg").convert(), (800, 600))
 t1_background = pygame.transform.scale(pygame.image.load("assets/backgrounds/grass.png").convert(), (800, 600))
@@ -497,6 +547,7 @@ while running:
                 if play_button_mask.get_at((local_x, local_y)):
                     pygame.event.clear(pygame.MOUSEBUTTONDOWN)
                     pygame.event.clear(pygame.MOUSEBUTTONUP)
+                    button_sound.play()
 
                     game_state = "level"
 
@@ -504,6 +555,7 @@ while running:
                 local_x = event.pos[0] - quit_button_rect.left
                 local_y = event.pos[1] - quit_button_rect.top
                 if quit_button_mask.get_at((local_x, local_y)):
+                    button_sound.play()
                     running = False
 
         if game_state == "over" and event.type == pygame.MOUSEBUTTONUP:
@@ -511,6 +563,7 @@ while running:
                 local_x = event.pos[0] - continue_button_rect.left
                 local_y = event.pos[1] - continue_button_rect.top
                 if continue_button_mask.get_at((local_x, local_y)):
+                    button_sound.play()
                     game_state = "level"
                     player.health = player.max_health
                     enemies.empty()
@@ -523,14 +576,17 @@ while running:
                     local_x = event.pos[0] - menu_button_rect.left
                     local_y = event.pos[1] - menu_button_rect.top
                     if menu_button_mask.get_at((local_x, local_y)):
+                        button_sound.play()
                         game_state = "title"
                 if special_move_button_rect.collidepoint(event.pos):
                     local_x = event.pos[0] - special_move_button_rect.left
                     local_y = event.pos[1] - special_move_button_rect.top
                     if special_move_button_mask.get_at((local_x, local_y)):
+                        button_sound.play()
                         game_state = "special_move"
                 for rect, label in difficulty_buttons:
                     if rect.collidepoint(event.pos):
+                        button_sound.play()
                         game_state = "play"
                         selected_level = None
                         map = bg
@@ -540,10 +596,10 @@ while running:
                             enemy_type = "fennec fox"
                         elif bg == t3_background:
                             enemy_type = "shark"
-                        print(enemy_type, label)
                         enemy_spawner = EnemySpawner(enemies, enemy_type, int(label), "infinity")
                 for rect, label in level_buttons:
                     if rect.collidepoint(event.pos):
+                        button_sound.play()
                         print(f"Selected {label}")
                         selected_level = int(label.split()[1])
                         player.main_cooldown = 2*60
@@ -584,6 +640,7 @@ while running:
                 mouse_pos = event.pos
                 for power, (btn_rect, text_rect) in sm_button_rects.items():
                     if btn_rect.collidepoint(mouse_pos):
+                        button_sound.play()
                         special_move = power
                         print(f"Selected special move: {special_move}")
                         game_state = "level"
@@ -621,6 +678,9 @@ while running:
     elif game_state == "level":
         player.main_cooldown = 0
         player.special_cooldown = 0
+        active_buff = None
+        buff_group.empty()
+        all_buffs = []
         counter += 1
         if 0 <= counter <= 90:
             bg = t1_background
@@ -776,6 +836,66 @@ while running:
         player.update(enemies=enemies)
         enemy_spawner.update()
 
+        if selected_level is None and active_buff is None and len(buff_group) == 0:
+            if random.random() < 0.02:
+                buff_type = random.choice(["bigger", "faster", "smaller", "sharper-sword"])
+                buff = Buff(buff_type)
+                buff_group.add(buff)
+                all_buffs.append(buff)
+        
+        for buff in all_buffs:
+            if pygame.sprite.collide_mask(player, buff):
+                active_buff = buff.buff_type
+                buff.active = True
+                buff.kill()
+            if buff.active:
+                if buff.buff_type == "bigger":
+                    player.image = pygame.transform.scale(player.image,
+                                                  (int(player.image.get_width() * 1.5),
+                                                   int(player.image.get_height() * 1.5)))
+                    old_rect = player.rect
+                    player.rect = player.image.get_rect()
+                    player.rect.midbottom = old_rect.midbottom
+                elif buff.buff_type == "faster":
+                    player.speed = 4
+                elif buff.buff_type == "smaller":
+                    player.image = pygame.transform.scale(player.image,
+                                                  (int(player.image.get_width() * 2/3),
+                                                   int(player.image.get_height() * 2/3)))
+                    old_rect = player.rect
+                    player.rect = player.image.get_rect()
+                    player.rect.midbottom = old_rect.midbottom
+                elif buff.buff_type == "sharper-sword":
+                    player.damage = 20
+                    if hasattr(player, "dash_vector") and player.dash_frames_left > 0:
+                        player.damage = 40
+            else:  
+                if buff.buff_type == "bigger":
+                    player.image = pygame.transform.scale(player.image,
+                                                  (int(player.image.get_width()),
+                                                   int(player.image.get_height())))
+                    old_rect = player.rect
+                    player.rect = player.image.get_rect()
+                    player.rect.midbottom = old_rect.midbottom
+                elif buff.buff_type == "faster":
+                    player.speed = 2
+                elif buff.buff_type == "smaller":
+                    player.image = pygame.transform.scale(player.image,
+                                                  (int(player.image.get_width()),
+                                                   int(player.image.get_height())))
+                    old_rect = player.rect
+                    player.rect = player.image.get_rect()
+                    player.rect.midbottom = old_rect.midbottom
+                elif buff.buff_type == "sharper-sword":
+                    player.damage = 10
+                    if hasattr(player, "dash_vector") and player.dash_frames_left > 0:
+                        player.damage = 20
+                if buff.done == True:
+                    all_buffs.remove(buff)
+            buff.update()
+                
+
+
         if player.main_attacking:
             for enemy in enemies:
                 if pygame.sprite.collide_mask(player, enemy):
@@ -804,6 +924,7 @@ while running:
 
         screen.blit(map, (0, 0))
         screen.blit(player.image, player.rect)
+
         if hasattr(player, "active_bullets"):
             for bullet in player.active_bullets:
                 pos = bullet["pos"]
@@ -826,9 +947,19 @@ while running:
                 bullet["pos"] += bullet["dir"] * bullet["speed"]
 
         draw_health_bar(screen, player.rect.centerx - 30, player.rect.bottom + 5, 60, 8, player.health, player.max_health)
+        if active_buff is not None:
+            # Load or reference buff icon image
+            buff_icon_image = pygame.image.load(f"assets/sprites/buffs/{active_buff}.png").convert_alpha()
+            buff_icon_image = pygame.transform.scale(buff_icon_image, (24, 24))  # scale icon
+
+            # Draw icon to the right of health bar
+            icon_x = player.rect.centerx + 35
+            icon_y = player.rect.bottom - 5
+            screen.blit(buff_icon_image, (icon_x, icon_y))
         enemies.draw(screen)
         for enemy in enemies:
             draw_health_bar(screen, enemy.rect.centerx - 20, enemy.rect.bottom + 5, 40, 6, enemy.health, enemy.max_health)
+        buff_group.draw(screen)
         
         if player.health <= 0:
             game_state = "over"
