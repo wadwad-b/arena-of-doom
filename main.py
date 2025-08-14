@@ -46,9 +46,19 @@ def draw_top_info_bar():
     pygame.draw.rect(screen, (0, 200, 0), (info_bar_padding, bar_y, bar_width * main_ratio, bar_height))
 
     # --- Level Text (Middle) ---
-    level_text = level_font_title.render(f"Level {selected_level}", True, (255, 255, 255))
-    level_rect = level_text.get_rect(center=(400, info_bar_height//2))
-    screen.blit(level_text, level_rect)
+    if selected_level is not None:
+        level_text = level_font_title.render(f"Level {selected_level}", True, (255, 255, 255))
+        level_rect = level_text.get_rect(center=(400, info_bar_height//2))
+        screen.blit(level_text, level_rect)
+    else:
+        level_text = level_font_title.render("Infinity Mode", True, (255, 255, 255))
+        wave_cooldown_text = info_bar_font.render(f"Wave {enemy_spawner.current_wave-1}", True, (255, 255, 255))
+        level_rect = level_text.get_rect(center=(400, info_bar_height//2-10))
+        wave_cooldown_rect = wave_cooldown_text.get_rect(center=(400, info_bar_height//2 + 25))
+        screen.blit(level_text, level_rect)
+        screen.blit(wave_cooldown_text, wave_cooldown_rect)
+
+    
 
     # --- Special Attack Cooldown Bar (Right) ---
     special_ratio = 1 - player.special_cooldown / 600
@@ -197,7 +207,7 @@ class Player(pygame.sprite.Sprite):
                 self.image = self.original_image
                 self.rect = self.image.get_rect(center=self.location)
             else:
-                self.angle += 15
+                self.angle += 10
                 self.image = pygame.transform.rotate(self.original_image, self.angle)
                 offset_rotated = self.pivot_offset.rotate(-self.angle)
                 self.rect = self.image.get_rect(center=(self.location[0] - offset_rotated.x, self.location[1] - offset_rotated.y))
@@ -294,19 +304,16 @@ class Enemy(pygame.sprite.Sprite):
         self.cooldown = 0
 
     def update(self, player_location):
-        # Calculate vector to player
+
         direction = pygame.math.Vector2(player_location) - self.location
         if direction.length() != 0:
             direction = direction.normalize()
 
-            # Move enemy toward player
+
             self.location += direction * self.speed
 
-            # Calculate angle in degrees to face player
-            # pygame's y-axis is down, so adjust accordingly:
             angle = direction.angle_to(pygame.math.Vector2(0, -1))
 
-            # Rotate image so it faces the player
             self.image = pygame.transform.rotate(self.original_image, angle)
             self.rect = self.image.get_rect(center=(round(self.location.x), round(self.location.y)))
             self.mask = pygame.mask.from_surface(self.image)
@@ -316,14 +323,18 @@ class EnemySpawner:
     def __init__(self, enemy_group, type, difficulty, waves):
         self.enemy_group = enemy_group
         self.current_wave = 1
-        self.wave_cooldown = 0
-        self.total_waves = waves
-        self.spawn_delay = 5 * 60 
+        self.wave_cooldown = 2*60
+        if waves != "infinity":
+            self.total_waves = waves
+        else:
+            self.total_waves = False
+        
+        self.spawn_delay = 5 * 60
         self.difficulty = difficulty
         self.type = type
     
     def spawn_enemies(self):
-        num_enemies = self.current_wave + 1
+        num_enemies = min(self.current_wave + 1, 10)
         health_min = int(20 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
         health_max = int(40 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
         damage_min = int(5 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
@@ -357,10 +368,14 @@ class EnemySpawner:
         self.wave_cooldown = self.spawn_delay
     
     def update(self):
-        if self.wave_cooldown == 0 and self.current_wave <= self.total_waves:
+        if self.wave_cooldown == 0 and self.total_waves == False:
+            if self.spawn_delay < 12*60:
+                self.spawn_delay += 1 * 60
+        if self.wave_cooldown == 0 and ((self.current_wave <= self.total_waves) if self.total_waves else True):
             self.spawn_enemies()
-        elif self.wave_cooldown > 0:
+        if self.wave_cooldown > 0:
             self.wave_cooldown -= 1
+
 
             
 
@@ -404,9 +419,9 @@ menu_button_rect.center = (800 - menu_button_rect.width // 2 - 25, 600 - menu_bu
 infinity_button_width = 400
 infinity_button_height = menu_button_rect.height
 infinity_button_rect = pygame.Rect(
-    10,  # left padding
+    10,
     menu_button_rect.top,
-    menu_button_rect.left - 10 - 10,  # from left padding to menu button left minus 10px spacing
+    menu_button_rect.left - 10 - 10,
     menu_button_rect.height
 )
 
@@ -511,6 +526,19 @@ while running:
                     local_y = event.pos[1] - special_move_button_rect.top
                     if special_move_button_mask.get_at((local_x, local_y)):
                         game_state = "special_move"
+                for rect, label in difficulty_buttons:
+                    if rect.collidepoint(event.pos):
+                        game_state = "play"
+                        selected_level = None
+                        map = bg
+                        if bg == t1_background:
+                            enemy_type = "spider"
+                        elif bg == t2_background:
+                            enemy_type = "fennec fox"
+                        elif bg == t3_background:
+                            enemy_type = "shark"
+                        print(enemy_type, label)
+                        enemy_spawner = EnemySpawner(enemies, enemy_type, int(label), "infinity")
                 for rect, label in level_buttons:
                     if rect.collidepoint(event.pos):
                         print(f"Selected {label}")
@@ -588,13 +616,18 @@ while running:
         clock.tick(60)
 
     elif game_state == "level":
+        player.main_cooldown = 0
+        player.special_cooldown = 0
         counter += 1
         if 0 <= counter <= 90:
-            screen.blit(t1_background, (0, 0))
+            bg = t1_background
+            screen.blit(bg, (0, 0))
         elif 91 <= counter <= 180:
-            screen.blit(t2_background, (0, 0))
+            bg = t2_background
+            screen.blit(bg, (0, 0))
         elif 181 <= counter <= 270:
-            screen.blit(t3_background, (0, 0))
+            bg = t3_background
+            screen.blit(bg, (0, 0))
         else:
             counter = 0
         
@@ -705,9 +738,6 @@ while running:
 
     elif game_state == "play":
         current_play_time = pygame.time.get_ticks()
-        if play_start_time is not None and current_play_time - play_start_time > 2000:
-            enemy_spawner.spawn_enemies()
-            play_start_time = None
 
         # Set up inputs
         keys = pygame.key.get_pressed()
@@ -741,8 +771,7 @@ while running:
 
         enemies.update(player.location)
         player.update(enemies=enemies)
-        if play_start_time is None:
-            enemy_spawner.update()
+        enemy_spawner.update()
 
         if player.main_attacking:
             for enemy in enemies:
@@ -802,7 +831,7 @@ while running:
             game_state = "over"
             status = "loss"
 
-        elif enemy_spawner.current_wave >= enemy_spawner.total_waves and len(enemies) == 0:
+        elif enemy_spawner.current_wave >= enemy_spawner.total_waves and len(enemies) == 0 and enemy_spawner.total_waves:
             game_state = "over"
             status = "win"
 
