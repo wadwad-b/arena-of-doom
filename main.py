@@ -8,6 +8,7 @@ screen.fill((255, 255, 255))
 pygame.mixer.music.load("assets/audio/olympus.mp3")
 pygame.mixer.music.set_volume(0.05)
 pygame.mixer.music.play(-1)
+completed_levels = []
 
 
 
@@ -104,13 +105,13 @@ def draw_health_bar(surface, x, y, width, height, current, maximum):
 
 def keep_in_bounds(location, width, height):
     x = max(width, min(location[0], 800 - width))
-    y = max(80 + height, min(location[1], 600 - height))
+    y = max(115 + height, min(location[1], 600))
     return pygame.math.Vector2(x, y)
 def update_pos(object, x, y, keep_object_in_bounds = True):
     object.location[0] += x
     object.location[1] += y
     if keep_object_in_bounds:
-        object.location = keep_in_bounds(object.location, object.original_image.get_width()//2, object.original_image.get_height()//2)
+        object.location = keep_in_bounds(object.location, object.image.get_width()//2, object.image.get_height()//2)
 
     else:
         pass
@@ -357,11 +358,12 @@ class EnemySpawner:
         self.type = type
     
     def spawn_enemies(self):
-        num_enemies = min(self.current_wave + 1, 10)
-        health_min = int(20 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
-        health_max = int(40 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
-        damage_min = int(5 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
-        damage_max = int(10 * (self.current_wave * 0.5) * (self.difficulty * 0.5))
+        num_enemies = min(self.current_wave + 1, 8)
+        wave_strength = 0.25 if self.total_waves == False else 0.5
+        health_min = int(20 * (self.current_wave * wave_strength) * (self.difficulty * 0.5))
+        health_max = int(40 * (self.current_wave * wave_strength) * (self.difficulty * 0.5))
+        damage_min = int(5 * (self.current_wave * wave_strength) * (self.difficulty * 0.5))
+        damage_max = int(10 * (self.current_wave * wave_strength) * (self.difficulty * 0.5))
 
         screen_width, screen_height = 800, 600
         spawn_margin = 50
@@ -664,8 +666,9 @@ while running:
         player.special_cooldown = 0
         if status == "win":
             text = game_over_font.render("You Win!", True, (255, 255, 255))
+            completed_levels.append(selected_level)
         elif status == "loss":
-            text = game_over_font.render("You Lose!", True, (255, 255, 255))
+            text = game_over_font.render("You Lost!", True, (255, 255, 255))
         text_rect = text.get_rect(center=(400, 300))
         text_box = text_rect.inflate(40, 40)
 
@@ -676,6 +679,7 @@ while running:
         clock.tick(60)
 
     elif game_state == "level":
+        player.health = 100
         player.main_cooldown = 0
         player.special_cooldown = 0
         active_buff = None
@@ -711,7 +715,11 @@ while running:
             text_surf = level_font_button.render(label, True, (255, 255, 255))
             text_rect = text_surf.get_rect(center=rect.center)
             screen.blit(text_surf, text_rect)
-            
+            if int(label.split()[1]) in completed_levels:
+                checkmark = pygame.image.load("assets/text/level-done.png")
+                checkmark = pygame.transform.scale(checkmark, (30, 30))
+                screen.blit(checkmark, (rect.x + rect.width - checkmark.get_width() // 2 - 5, rect.y - checkmark.get_height() // 2 + 5))
+
         screen.blit(menu_button, menu_button_rect)
 
         pygame.draw.rect(screen, (230, 230, 230), infinity_panel_rect, border_radius=15)
@@ -837,7 +845,7 @@ while running:
         enemy_spawner.update()
 
         if selected_level is None and active_buff is None and len(buff_group) == 0:
-            if random.random() < 0.02:
+            if random.random() < 0.1/60:
                 buff_type = random.choice(["bigger", "faster", "smaller", "sharper-sword"])
                 buff = Buff(buff_type)
                 buff_group.add(buff)
@@ -865,6 +873,7 @@ while running:
                     old_rect = player.rect
                     player.rect = player.image.get_rect()
                     player.rect.midbottom = old_rect.midbottom
+                    player.speed = 2.5
                 elif buff.buff_type == "sharper-sword":
                     player.damage = 20
                     if hasattr(player, "dash_vector") and player.dash_frames_left > 0:
@@ -886,6 +895,7 @@ while running:
                     old_rect = player.rect
                     player.rect = player.image.get_rect()
                     player.rect.midbottom = old_rect.midbottom
+                    player.speed = 2
                 elif buff.buff_type == "sharper-sword":
                     player.damage = 10
                     if hasattr(player, "dash_vector") and player.dash_frames_left > 0:
