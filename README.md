@@ -14,7 +14,7 @@ Arena of Doom is a 2D action combat game built with Python and Pygame. Players f
 - **Special Moves:** Unlock and select powerful abilities for strategic combat.
 - **Buff System:** Collect buffs that temporarily increase size, speed, attack power, or other abilities.
 - **Infinity Mode:** Endless waves of enemies with selectable difficulties.
-- **Dynamic Combat:** Real-time melee and ranged attacks, health bars, and enemy AI.
+- **Dynamic Combat:** Real-time melee and ranged attacks, and health bars.
 - **Level Progression:** Completed levels are tracked with checkmarks in the Level Select screen.
 - **UI Elements:** Interactive buttons, panels, and informative overlays.
 
