@@ -40,7 +40,7 @@ pip install pygame
 ```bash
 python main.py
 ```
-## OR
+### OR
 
 Download the [arena-of-doom.zip](https://drive.google.com/file/d/1uOTDWWpqoR8qzYo2cO62NDnj0ilm1G76/view?usp=sharing) and extract the files to run the executable file, `main.exe`.
 
