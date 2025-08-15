@@ -88,7 +88,7 @@ or download the files and simply run them in your code editor (don't forget to i
 
 - Player attacks enemies with melee or special attacks.  
 - Enemies deal damage and can be staggered.  
-- Health bars appear above players and enemies.
+- Health bars appear below players and enemies.
 
 ### Infinity Mode
 
