@@ -40,7 +40,9 @@ pip install pygame
 ```bash
 python main.py
 ```
-or download the files and simply run them in your code editor (don't forget to install dependencies).
+## OR
+
+Download the [arena-of-doom.zip](https://drive.google.com/file/d/1uOTDWWpqoR8qzYo2cO62NDnj0ilm1G76/view?usp=sharing) and extract the files to run the executable file `main.exe`.
 
 > Make sure all `assets/` folders (fonts, sprites, backgrounds, etc.) are included in the project directory.
 
