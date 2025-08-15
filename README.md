@@ -40,7 +40,7 @@ pip install pygame
 ```bash
 python main.py
 ```
-or download the files and simply run them in your code editor.
+or download the files and simply run them in your code editor (don't forget to install dependencies).
 
 > Make sure all `assets/` folders (fonts, sprites, backgrounds, etc.) are included in the project directory.
 
