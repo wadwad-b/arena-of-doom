@@ -42,9 +42,9 @@ python main.py
 ```
 ## OR
 
-Download the [arena-of-doom.zip](https://drive.google.com/file/d/1uOTDWWpqoR8qzYo2cO62NDnj0ilm1G76/view?usp=sharing) and extract the files to run the executable file `main.exe`.
+Download the [arena-of-doom.zip](https://drive.google.com/file/d/1uOTDWWpqoR8qzYo2cO62NDnj0ilm1G76/view?usp=sharing) and extract the files to run the executable file, `main.exe`.
 
-> Make sure all `assets/` folders (fonts, sprites, backgrounds, etc.) are included in the project directory.
+> Make sure the `assets` folder is included in the project directory with all of its contents still inside.
 
 ---
 
