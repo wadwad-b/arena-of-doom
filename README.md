@@ -24,20 +24,20 @@ Arena of Doom is a 2D action combat game built with Python and Pygame. Players f
 
 1. Clone the repository:
 
-```
+```bash
 git clone https://github.com/wadwad-b/arena-of-doom.git
 cd arena-of-doom
 ```
 
 2. Install dependencies:
 
-```
+```bash
 pip install pygame
 ```
 
 3. Run the game:
 
-```
+```bash
 python main.py
 ```
 or download the files and simply run them in your code editor.
